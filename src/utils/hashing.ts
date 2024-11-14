@@ -1,15 +1,13 @@
 import * as Base58 from "base58-js";
-import * as crypto from "crypto";
 import { Base64 } from "js-base64";
+import { sha256 } from "js-sha256";
 
 export class Hashing {
     public static readonly sha256 = {
         digest: function (data: Uint8Array | string): Uint8Array {
-            const sha256 = crypto
-                .createHash("sha256") // may need to change in the future.
-                .update(data)
-                .digest();
-            return sha256;
+            // js-sha256 expects strings or arrays and returns a Uint8Array by default
+            const hashArray = sha256.arrayBuffer(data);
+            return new Uint8Array(hashArray);
         },
     };
 
