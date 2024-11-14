@@ -1,14 +1,16 @@
 {
     "name": "@tuum-tech/hedera-did-sdk-js",
-    "version": "0.0.10",
+    "version": "0.0.11",
     "description": "Support for the Hedera Hashgraph DID Method on the Hedera JavaScript/TypeScript SDK",
     "main": "dist/index.js",
     "module": "dist/index.js",
+    "types": "dist/index.d.ts",
     "files": [
         "dist",
         "src",
         "package.json",
-        "README.md"
+        "README.md",
+        "CHANGELOG.md"
     ],
     "scripts": {
         "prepare": "npm run build",

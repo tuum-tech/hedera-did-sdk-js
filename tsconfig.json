@@ -13,6 +13,8 @@
         "incremental": true,
         "pretty": true,
         "outDir": "./dist",
+        "declaration": true,
+        "declarationDir": "./dist",
         "typeRoots": ["./src/types", "./node_modules/@types"]
     },
     "include": ["src/**/*"],
