@@ -1,7 +1,13 @@
 import * as crypto from "crypto";
 import { Base64 } from "js-base64";
-import { base58btc } from "multiformats/bases/base58";
 import { MultibaseDecoder, MultibaseEncoder } from "multiformats/bases/interface";
+import { baseX } from "multiformats/dist/types/src/bases/base";
+
+const base58btc = baseX({
+    name: "base58btc",
+    prefix: "z",
+    alphabet: "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz",
+});
 
 export class Hashing {
     public static readonly sha256 = {
