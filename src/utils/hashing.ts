@@ -1,7 +1,6 @@
+import * as Base58 from "base58-js";
 import * as crypto from "crypto";
 import { Base64 } from "js-base64";
-import { MultibaseDecoder, MultibaseEncoder } from "multiformats/bases/interface";
-import { bases } from "multiformats/basics";
 
 export class Hashing {
     public static readonly sha256 = {
@@ -25,10 +24,10 @@ export class Hashing {
 
     public static readonly base58 = {
         decode: function (encodedString: string): Uint8Array {
-            return bases.base58btc.decode(encodedString); // using multiformats for base58 decoding
+            return Base58.base58_to_binary(encodedString);
         },
         encode: function (decodedBytes: Uint8Array): string {
-            return bases.base58btc.encode(decodedBytes); // using multiformats for base58 encoding
+            return Base58.binary_to_base58(decodedBytes);
         },
     };
 
@@ -39,11 +38,20 @@ export class Hashing {
      * https://www.w3.org/TR/did-core/#dfn-publickeymultibase
      */
     public static readonly multibase = {
-        encode: function (data: Uint8Array, base: MultibaseEncoder<string> = bases.base58btc): string {
-            return base.encode(data);
+        /**
+         * Encodes data using base58 encoding with a "z" prefix (multibase style).
+         */
+        encode: function (data: Uint8Array): string {
+            return "z" + Hashing.base58.encode(data);
         },
-        decode: function (data: string, base: MultibaseDecoder<string> = bases.base58btc): Uint8Array {
-            return base.decode(data);
+        /**
+         * Decodes a multibase (base58btc) encoded string, ensuring it starts with the "z" prefix.
+         */
+        decode: function (data: string): Uint8Array {
+            if (!data.startsWith("z")) {
+                throw new Error("Invalid multibase encoding. Expected prefix 'z'.");
+            }
+            return Hashing.base58.decode(data.slice(1));
         },
     };
 }
