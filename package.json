@@ -1,6 +1,6 @@
 {
     "name": "@tuum-tech/hedera-did-sdk-js",
-    "version": "0.0.2",
+    "version": "0.0.3",
     "engines": {
         "npm": ">=8.1.2",
         "node": ">=16.13.1"
@@ -35,6 +35,7 @@
     "homepage": "https://github.com/hashgraph/did-sdk-js#readme",
     "devDependencies": {
         "@types/jest": "^27.4.0",
+        "@types/long": "^4.0.2",
         "@types/node": "^16.7.7",
         "jest": "^27.5.0",
         "nodemon": "^2.0.7",

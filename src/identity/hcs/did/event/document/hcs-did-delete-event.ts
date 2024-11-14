@@ -9,7 +9,7 @@ export class HcsDidDeleteEvent extends HcsDidEvent {
     }
 
     getId(): string {
-        return undefined;
+        return "";
     }
 
     public toJsonTree() {
@@ -21,7 +21,7 @@ export class HcsDidDeleteEvent extends HcsDidEvent {
     }
 
     public getBase64() {
-        return null;
+        return "";
     }
 
     static fromJsonTree(tree: any): HcsDidDeleteEvent {

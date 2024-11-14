@@ -20,12 +20,12 @@ export class HcsDidTransaction {
     protected topicId: TopicId;
     protected message: MessageEnvelope<HcsDidMessage>;
 
-    private buildTransactionFunction: (input: TopicMessageSubmitTransaction) => Promise<Transaction>;
-    private receiver: (input: MessageEnvelope<HcsDidMessage>) => void;
-    private errorHandler: (input: Error) => void;
-    private executed: boolean;
-    private signer: Signer<Uint8Array>;
-    private listener: HcsDidTopicListener;
+    private buildTransactionFunction?: (input: TopicMessageSubmitTransaction) => Promise<Transaction>;
+    private receiver?: (input: MessageEnvelope<HcsDidMessage>) => void;
+    private errorHandler?: (input: Error) => void;
+    private executed: boolean = false;
+    private signer?: Signer<Uint8Array>;
+    private listener?: HcsDidTopicListener;
 
     /**
      * Instantiates a new transaction object from a message that was already prepared.
@@ -127,9 +127,8 @@ export class HcsDidTransaction {
         });
 
         const envelope = this.message;
-
         const messageContent = !envelope.getSignature()
-            ? envelope.sign(this.signer)
+            ? envelope.sign(this.signer!) // Ensure `signer` exists with `!`
             : ArraysUtils.fromString(envelope.toJSON());
 
         if (this.receiver) {
@@ -147,33 +146,32 @@ export class HcsDidTransaction {
                     if (!ArraysUtils.equals(messageContent, response.contents)) {
                         return;
                     }
-
                     this.handleError(new DidError(reason + ": " + ArraysUtils.toString(response.contents)));
-                    this.listener.unsubscribe();
+                    this.listener?.unsubscribe();
                 })
                 .subscribe(client, (msg) => {
-                    this.listener.unsubscribe();
-                    this.receiver(msg);
+                    this.listener?.unsubscribe();
+                    this.receiver?.(msg);
                 });
         }
 
         const tx = new TopicMessageSubmitTransaction().setTopicId(this.topicId).setMessage(messageContent);
-
-        let transactionId;
-
+        let transactionId: TransactionId | undefined;
         try {
-            const response = await (await this.buildTransactionFunction(tx)).execute(client);
-            await response.getReceipt(client);
-
-            transactionId = response.transactionId;
-            this.executed = true;
-        } catch (e) {
-            this.handleError(e);
-            if (this.listener) {
-                this.listener.unsubscribe();
+            if (this.buildTransactionFunction) {
+                const response = await (await this.buildTransactionFunction(tx)).execute(client);
+                await response.getReceipt(client);
+                transactionId = response.transactionId;
+                this.executed = true;
             }
+        } catch (e) {
+            this.handleError(e as Error);
+            this.listener?.unsubscribe();
         }
 
+        if (!transactionId) {
+            throw new DidError("Transaction ID is undefined after execution");
+        }
         return transactionId;
     }
 

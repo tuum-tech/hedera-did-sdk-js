@@ -25,7 +25,7 @@ export class HcsDidCreateDidDocumentEvent extends HcsDidEvent {
 
         this.id = id;
         this.cid = cid;
-        this.url = url;
+        this.url = url || "";
     }
 
     public getId() {

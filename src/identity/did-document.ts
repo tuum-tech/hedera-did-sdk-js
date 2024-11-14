@@ -22,9 +22,9 @@ export class DidDocument {
     private readonly id: string;
     private readonly context: string;
 
-    private created: Timestamp = null;
-    private updated: Timestamp = null;
-    private versionId: string = null;
+    private created: Timestamp | null = null;
+    private updated: Timestamp | null = null;
+    private versionId: string = "";
     private deactivated: boolean = false;
     private downloader: IpfsDidDocumentDownloader = new IpfsDidDocumentDownloader();
 
@@ -109,7 +109,7 @@ export class DidDocument {
     }
 
     public toJsonTree(): any {
-        let rootObject = {};
+        let rootObject: { [key: string]: any } = {};
 
         rootObject[DidDocumentJsonProperties.CONTEXT] = this.context;
         rootObject[DidDocumentJsonProperties.ID] = this.id;
@@ -174,7 +174,7 @@ export class DidDocument {
         this.created = null;
         this.updated = null;
         this.deactivated = true;
-        this.versionId = null;
+        this.versionId = "";
     }
 
     private setDocumentUpdated(message: HcsDidMessage): void {
@@ -196,13 +196,12 @@ export class DidDocument {
                 this.controller = doc[DidDocumentJsonProperties.CONTROLLER];
 
                 this.services = new Map(
-                    (doc[DidDocumentJsonProperties.SERVICE] ?? []).map((service) => [service.id, service])
+                    (doc[DidDocumentJsonProperties.SERVICE] ?? []).map((service: { id: any }) => [service.id, service])
                 );
                 this.verificationMethods = new Map(
-                    (doc[DidDocumentJsonProperties.VERIFICATION_METHOD] ?? []).map((verificationMethod) => [
-                        verificationMethod.id,
-                        verificationMethod,
-                    ])
+                    (doc[DidDocumentJsonProperties.VERIFICATION_METHOD] ?? []).map(
+                        (verificationMethod: { id: any }) => [verificationMethod.id, verificationMethod]
+                    )
                 );
 
                 this.verificationRelationships[DidDocumentJsonProperties.ASSERTION_METHOD] =

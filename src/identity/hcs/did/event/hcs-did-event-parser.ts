@@ -16,25 +16,33 @@ import { HcsDidCreateVerificationRelationshipEvent } from "./verification-relati
 import { HcsDidRevokeVerificationRelationshipEvent } from "./verification-relationship/hcs-did-revoke-verification-relationship-event";
 import { HcsDidUpdateVerificationRelationshipEvent } from "./verification-relationship/hcs-did-update-verification-relationship-event";
 
-const EVENT_NAME_TO_CLASS = {
-    [DidMethodOperation.CREATE]: {
-        [HcsDidEventTargetName.DID_OWNER]: HcsDidCreateDidOwnerEvent,
-        [HcsDidEventTargetName.DID_DOCUMENT]: HcsDidCreateDidDocumentEvent,
-        [HcsDidEventTargetName.SERVICE]: HcsDidCreateServiceEvent,
-        [HcsDidEventTargetName.VERIFICATION_METHOD]: HcsDidCreateVerificationMethodEvent,
-        [HcsDidEventTargetName.VERIFICATION_RELATIONSHIP]: HcsDidCreateVerificationRelationshipEvent,
+const EVENT_NAME_TO_CLASS: Record<string, Record<string, any>> = {
+    create: {
+        DIDOwner: HcsDidCreateDidOwnerEvent,
+        DIDDocument: HcsDidCreateDidDocumentEvent,
+        Service: HcsDidCreateServiceEvent,
+        VerificationMethod: HcsDidCreateVerificationMethodEvent,
+        VerificationRelationship: HcsDidCreateVerificationRelationshipEvent,
     },
-    [DidMethodOperation.UPDATE]: {
-        [HcsDidEventTargetName.DID_OWNER]: HcsDidUpdateDidOwnerEvent,
-        [HcsDidEventTargetName.SERVICE]: HcsDidUpdateServiceEvent,
-        [HcsDidEventTargetName.VERIFICATION_METHOD]: HcsDidUpdateVerificationMethodEvent,
-        [HcsDidEventTargetName.VERIFICATION_RELATIONSHIP]: HcsDidUpdateVerificationRelationshipEvent,
+    update: {
+        DIDOwner: HcsDidUpdateDidOwnerEvent,
+        Service: HcsDidUpdateServiceEvent,
+        VerificationMethod: HcsDidUpdateVerificationMethodEvent,
+        VerificationRelationship: HcsDidUpdateVerificationRelationshipEvent,
     },
-    [DidMethodOperation.REVOKE]: {
-        [HcsDidEventTargetName.SERVICE]: HcsDidRevokeServiceEvent,
-        [HcsDidEventTargetName.VERIFICATION_METHOD]: HcsDidRevokeVerificationMethodEvent,
-        [HcsDidEventTargetName.VERIFICATION_RELATIONSHIP]: HcsDidRevokeVerificationRelationshipEvent,
+    revoke: {
+        Service: HcsDidRevokeServiceEvent,
+        VerificationMethod: HcsDidRevokeVerificationMethodEvent,
+        VerificationRelationship: HcsDidRevokeVerificationRelationshipEvent,
     },
+};
+
+const OPERATION_MAP: Record<DidMethodOperation, string> = {
+    [DidMethodOperation.CREATE_DID_DOCUMENT]: "create-did-document",
+    [DidMethodOperation.CREATE]: "create",
+    [DidMethodOperation.UPDATE]: "update",
+    [DidMethodOperation.REVOKE]: "revoke",
+    [DidMethodOperation.DELETE]: "delete",
 };
 
 export class HcsDidEventParser {
@@ -45,12 +53,39 @@ export class HcsDidEventParser {
 
         try {
             const tree = JSON.parse(Hashing.base64.decode(eventBase64));
-            const eventsByOperation = EVENT_NAME_TO_CLASS[operation];
+            const eventsByOperation = EVENT_NAME_TO_CLASS[OPERATION_MAP[operation]];
             const eventTargetName = Object.keys(eventsByOperation).find((etn) => !!tree[etn]);
 
-            return eventsByOperation[eventTargetName].fromJsonTree(tree[eventTargetName]);
+            if (eventTargetName && eventsByOperation[eventTargetName]) {
+                return eventsByOperation[eventTargetName].fromJsonTree(tree[eventTargetName]);
+            }
+            return new HcsDidEmptyEvent();
         } catch {
-            return null;
+            return new HcsDidEmptyEvent();
         }
+    }
+}
+
+export class HcsDidEmptyEvent extends HcsDidEvent {
+    // Define the target name as an empty or default value
+    public readonly targetName = HcsDidEventTargetName.NONE;
+
+    constructor() {
+        super();
+    }
+
+    // Implement getId with a placeholder ID
+    getId(): string {
+        return "empty-event";
+    }
+
+    // Return a minimal or empty JSON tree
+    toJsonTree(): any {
+        return {};
+    }
+
+    // Return a minimal or empty JSON representation
+    toJSON(): string {
+        return JSON.stringify({});
     }
 }

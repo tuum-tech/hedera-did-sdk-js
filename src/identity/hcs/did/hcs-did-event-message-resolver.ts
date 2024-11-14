@@ -18,10 +18,10 @@ export class HcsDidEventMessageResolver {
     protected messages: MessageEnvelope<HcsDidMessage>[] = [];
 
     private lastMessageArrivalTime: Long;
-    private nextMessageArrivalTimeout;
-    private resultsHandler: (input: MessageEnvelope<HcsDidMessage>[]) => void;
-    private errorHandler: (input: Error) => void;
-    private existingSignatures: string[];
+    private nextMessageArrivalTimeout: NodeJS.Timeout | null = null;
+    private resultsHandler: ((input: MessageEnvelope<HcsDidMessage>[]) => void) | undefined;
+    private errorHandler: ((input: Error) => void) | undefined;
+    private existingSignatures: string[] = [];
     private readonly listener: HcsDidTopicListener;
     private noMoreMessagesTimeout: Long;
 
@@ -33,7 +33,6 @@ export class HcsDidEventMessageResolver {
     constructor(topicId: TopicId, startTime: Timestamp = new Timestamp(0, 0)) {
         this.topicId = topicId;
         this.listener = new HcsDidTopicListener(this.topicId, startTime);
-
         this.noMoreMessagesTimeout = HcsDidEventMessageResolver.DEFAULT_TIMEOUT;
         this.lastMessageArrivalTime = Long.fromInt(Date.now());
     }
@@ -42,18 +41,15 @@ export class HcsDidEventMessageResolver {
         new Validator().checkValidationErrors("Resolver not executed: ", (v) => {
             return this.validate(v);
         });
-
         this.existingSignatures = [];
-
         this.listener
             .setEndTime(Timestamp.fromDate(new Date()))
             .setIgnoreErrors(false)
-            .onError(this.errorHandler)
+            .onError(this.errorHandler || ((err) => console.error("Error:", err)))
             .onComplete(() => this.finish())
             .subscribe(client, (msg) => {
                 return this.handleMessage(msg);
             });
-
         this.lastMessageArrivalTime = Long.fromInt(Date.now());
         this.waitOrFinish();
     }
@@ -65,15 +61,13 @@ export class HcsDidEventMessageResolver {
      */
     private handleMessage(envelope: MessageEnvelope<HcsDidMessage>): void {
         this.lastMessageArrivalTime = Long.fromInt(Date.now());
-
-        if (!this.matchesSearchCriteria(envelope.open())) {
+        const message = envelope.open();
+        if (message === null || !this.matchesSearchCriteria(message)) {
             return;
         }
-
-        if (this.existingSignatures.indexOf(envelope.getSignature()) != -1) {
+        if (this.existingSignatures.includes(envelope.getSignature())) {
             return;
         }
-
         this.existingSignatures.push(envelope.getSignature());
         this.messages.push(envelope);
     }
@@ -83,7 +77,6 @@ export class HcsDidEventMessageResolver {
      */
     protected async waitOrFinish(): Promise<void> {
         const timeDiff = Long.fromInt(Date.now()).sub(this.lastMessageArrivalTime);
-
         if (timeDiff.lessThanOrEqual(this.noMoreMessagesTimeout)) {
             if (this.nextMessageArrivalTimeout) {
                 clearTimeout(this.nextMessageArrivalTimeout);
@@ -94,22 +87,20 @@ export class HcsDidEventMessageResolver {
             );
             return;
         }
-
         await this.finish();
     }
 
     protected async finish(): Promise<void> {
-        this.resultsHandler(this.messages);
-
+        if (this.resultsHandler) {
+            this.resultsHandler(this.messages);
+        }
         if (this.nextMessageArrivalTimeout) {
             clearTimeout(this.nextMessageArrivalTimeout);
         }
-
         if (this.listener) {
             this.listener.unsubscribe();
         }
     }
-
     /**
      * Defines a handler for resolution results.
      * This will be called when the resolution process is finished.

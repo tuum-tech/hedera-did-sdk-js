@@ -11,11 +11,11 @@ import { HcsDidMessage } from "./hcs-did-message";
 export class HcsDidTopicListener {
     protected topicId: TopicId;
     protected query: TopicMessageQuery;
-    protected errorHandler: (input: Error) => void;
+    protected errorHandler: ((input: Error) => void) | undefined;
     protected ignoreErrors: boolean;
-    protected subscriptionHandle: SubscriptionHandle;
-    protected filters: ((input: TopicMessage) => boolean)[];
-    protected invalidMessageHandler: (t: TopicMessage, u: string) => void;
+    protected subscriptionHandle: SubscriptionHandle | undefined;
+    protected filters: ((input: TopicMessage) => boolean)[] = [];
+    protected invalidMessageHandler: ((t: TopicMessage, u: string) => void) | undefined;
 
     /**
      * Creates a new instance of a DID topic listener for the given consensus topic.
@@ -112,12 +112,12 @@ export class HcsDidTopicListener {
      * @param response Response message coming from the mirror node for this listener's topic.
      * @return The message inside an envelope.
      */
-    protected extractMessage(response: TopicMessage): MessageEnvelope<HcsDidMessage> {
-        let result: MessageEnvelope<HcsDidMessage> = null;
+    protected extractMessage(response: TopicMessage): MessageEnvelope<HcsDidMessage> | null {
+        let result: MessageEnvelope<HcsDidMessage> | null = null;
         try {
             result = MessageEnvelope.fromMirrorResponse(response, HcsDidMessage);
         } catch (err) {
-            this.handleError(err);
+            this.handleError(err as Error);
         }
 
         return result;
@@ -132,8 +132,8 @@ export class HcsDidTopicListener {
      */
     protected isMessageValid(envelope: MessageEnvelope<HcsDidMessage>, response: TopicMessage): boolean {
         try {
-            const message: HcsDidMessage = envelope.open();
-            if (!message) {
+            const message: HcsDidMessage | null = envelope.open();
+            if (message === null) {
                 this.reportInvalidMessage(response, "Empty message received when opening envelope");
                 return false;
             }
@@ -145,8 +145,8 @@ export class HcsDidTopicListener {
 
             return true;
         } catch (err) {
-            this.handleError(err);
-            this.reportInvalidMessage(response, "Exception while validating message: " + err.message);
+            this.handleError(err as Error);
+            this.reportInvalidMessage(response, "Exception while validating message: " + (err as Error).message);
             return false;
         }
     }

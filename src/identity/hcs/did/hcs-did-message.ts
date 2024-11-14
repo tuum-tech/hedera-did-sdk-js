@@ -73,7 +73,11 @@ export class HcsDidMessage {
             const hcsDid: HcsDid = DidParser.parse(this.did);
 
             // Verify that the message was sent to the right topic, if the DID contains the topic
-            if (!!didTopicId && !!hcsDid.getTopicId() && didTopicId.toString() != hcsDid.getTopicId().toString()) {
+            if (
+                !!didTopicId &&
+                hcsDid.getTopicId()?.toString() &&
+                didTopicId.toString() != hcsDid.getTopicId()?.toString()
+            ) {
                 return false;
             }
         } catch (e) {

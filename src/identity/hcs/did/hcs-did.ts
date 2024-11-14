@@ -42,17 +42,17 @@ export class HcsDid {
     public static TRANSACTION_FEE = new Hbar(2);
     public static READ_TOPIC_MESSAGES_TIMEOUT = 5000;
 
-    protected client: Client;
-    protected privateKey: PrivateKey;
-    protected identifier: string;
-    protected network: string;
-    protected topicId: TopicId;
+    protected client?: Client;
+    protected privateKey?: PrivateKey;
+    protected identifier?: string;
+    protected network: string = DidSyntax.HEDERA_NETWORK_MAINNET;
+    protected topicId: TopicId | undefined | null;
 
-    protected messages: HcsDidMessage[];
-    protected resolvedAt: Timestamp;
-    protected document: DidDocument;
+    protected messages: HcsDidMessage[] = [];
+    protected resolvedAt: Timestamp = Timestamp.generate();
+    protected document?: DidDocument;
 
-    protected onMessageConfirmed: (message: MessageEnvelope<HcsDidMessage>) => void;
+    protected onMessageConfirmed?: (message: MessageEnvelope<HcsDidMessage>) => void;
 
     constructor(args: {
         identifier?: string;
@@ -86,7 +86,7 @@ export class HcsDid {
         if (this.identifier) {
             await this.resolve();
 
-            if (this.document.hasOwner()) {
+            if (this.document!.hasOwner()) {
                 throw new DidError("DID is already registered");
             }
         } else {
@@ -95,17 +95,17 @@ export class HcsDid {
              */
             const topicCreateTransaction = new TopicCreateTransaction()
                 .setMaxTransactionFee(HcsDid.TRANSACTION_FEE)
-                .setAdminKey(this.privateKey.publicKey)
-                .setSubmitKey(this.privateKey.publicKey)
-                .freezeWith(this.client);
+                .setAdminKey(this.privateKey!.publicKey)
+                .setSubmitKey(this.privateKey!.publicKey)
+                .freezeWith(this.client!);
 
-            const sigTx = await topicCreateTransaction.sign(this.privateKey);
-            const txId = await sigTx.execute(this.client);
-            const topicId = (await txId.getReceipt(this.client)).topicId;
+            const sigTx = await topicCreateTransaction.sign(this.privateKey!);
+            const txId = await sigTx.execute(this.client!);
+            const topicId = (await txId.getReceipt(this.client!)).topicId;
 
             this.topicId = topicId;
-            this.network = this.client.ledgerId.toString();
-            this.identifier = this.buildIdentifier(this.privateKey.publicKey);
+            this.network = this.client!.network.toString();
+            this.identifier = this.buildIdentifier(this.privateKey!.publicKey);
         }
 
         /**
@@ -114,9 +114,9 @@ export class HcsDid {
         const event = new HcsDidCreateDidOwnerEvent(
             this.identifier + "#did-root-key",
             this.identifier,
-            this.privateKey.publicKey
+            this.privateKey!.publicKey
         );
-        await this.submitTransaction(DidMethodOperation.CREATE, event, this.privateKey);
+        await this.submitTransaction(DidMethodOperation.CREATE, event, this.privateKey!);
 
         return this;
     }
@@ -134,7 +134,7 @@ export class HcsDid {
 
         await this.resolve();
 
-        if (!this.document.hasOwner()) {
+        if (!this.document!.hasOwner()) {
             throw new DidError("DID is not registered or was recently deleted. DID has to be registered first.");
         }
 
@@ -142,14 +142,14 @@ export class HcsDid {
          * Change owner of the topic
          */
         const transaction = await new TopicUpdateTransaction()
-            .setTopicId(this.topicId)
+            .setTopicId(this.topicId!)
             .setAdminKey(args.newPrivateKey.publicKey)
             .setSubmitKey(args.newPrivateKey.publicKey)
-            .freezeWith(this.client);
+            .freezeWith(this.client!);
 
-        const signTx = await (await transaction.sign(this.privateKey)).sign(args.newPrivateKey);
-        const txResponse = await signTx.execute(this.client);
-        await txResponse.getReceipt(this.client);
+        const signTx = await (await transaction.sign(this.privateKey!)).sign(args.newPrivateKey);
+        const txResponse = await signTx.execute(this.client!);
+        await txResponse.getReceipt(this.client!);
 
         this.privateKey = args.newPrivateKey;
 
@@ -175,7 +175,7 @@ export class HcsDid {
 
         this.validateClientConfig();
 
-        await this.submitTransaction(DidMethodOperation.DELETE, new HcsDidDeleteEvent(), this.privateKey);
+        await this.submitTransaction(DidMethodOperation.DELETE, new HcsDidDeleteEvent(), this.privateKey!);
         return this;
     }
 
@@ -189,11 +189,13 @@ export class HcsDid {
         }
 
         return new Promise((resolve, reject) => {
-            new HcsDidEventMessageResolver(this.topicId)
+            new HcsDidEventMessageResolver(this.topicId!)
                 .setTimeout(HcsDid.READ_TOPIC_MESSAGES_TIMEOUT)
                 .whenFinished(async (messages) => {
-                    this.messages = messages.map((msg) => msg.open());
-                    this.document = new DidDocument(this.identifier);
+                    this.messages = messages
+                        .map((msg) => msg.open())
+                        .filter((msg): msg is HcsDidMessage => msg !== null);
+                    this.document = new DidDocument(this.identifier!);
                     try {
                         await this.document.processMessages(this.messages);
                         resolve(this.document);
@@ -205,7 +207,7 @@ export class HcsDid {
                     // console.error(err);
                     reject(err);
                 })
-                .execute(this.client);
+                .execute(this.client!);
         });
     }
 
@@ -222,7 +224,7 @@ export class HcsDid {
         this.validateClientConfig();
 
         const event = new HcsDidCreateServiceEvent(args.id, args.type, args.serviceEndpoint);
-        await this.submitTransaction(DidMethodOperation.CREATE, event, this.privateKey);
+        await this.submitTransaction(DidMethodOperation.CREATE, event, this.privateKey!);
 
         return this;
     }
@@ -236,7 +238,7 @@ export class HcsDid {
         this.validateClientConfig();
 
         const event = new HcsDidUpdateServiceEvent(args.id, args.type, args.serviceEndpoint);
-        await this.submitTransaction(DidMethodOperation.UPDATE, event, this.privateKey);
+        await this.submitTransaction(DidMethodOperation.UPDATE, event, this.privateKey!);
 
         return this;
     }
@@ -250,7 +252,7 @@ export class HcsDid {
         this.validateClientConfig();
 
         const event = new HcsDidRevokeServiceEvent(args.id);
-        await this.submitTransaction(DidMethodOperation.REVOKE, event, this.privateKey);
+        await this.submitTransaction(DidMethodOperation.REVOKE, event, this.privateKey!);
 
         return this;
     }
@@ -269,7 +271,7 @@ export class HcsDid {
         this.validateClientConfig();
 
         const event = new HcsDidCreateVerificationMethodEvent(args.id, args.type, args.controller, args.publicKey);
-        await this.submitTransaction(DidMethodOperation.CREATE, event, this.privateKey);
+        await this.submitTransaction(DidMethodOperation.CREATE, event, this.privateKey!);
 
         return this;
     }
@@ -288,7 +290,7 @@ export class HcsDid {
         this.validateClientConfig();
 
         const event = new HcsDidUpdateVerificationMethodEvent(args.id, args.type, args.controller, args.publicKey);
-        await this.submitTransaction(DidMethodOperation.UPDATE, event, this.privateKey);
+        await this.submitTransaction(DidMethodOperation.UPDATE, event, this.privateKey!);
 
         return this;
     }
@@ -302,7 +304,7 @@ export class HcsDid {
         this.validateClientConfig();
 
         const event = new HcsDidRevokeVerificationMethodEvent(args.id);
-        await this.submitTransaction(DidMethodOperation.REVOKE, event, this.privateKey);
+        await this.submitTransaction(DidMethodOperation.REVOKE, event, this.privateKey!);
 
         return this;
     }
@@ -328,7 +330,7 @@ export class HcsDid {
             args.controller,
             args.publicKey
         );
-        await this.submitTransaction(DidMethodOperation.CREATE, event, this.privateKey);
+        await this.submitTransaction(DidMethodOperation.CREATE, event, this.privateKey!);
 
         return this;
     }
@@ -354,7 +356,7 @@ export class HcsDid {
             args.controller,
             args.publicKey
         );
-        await this.submitTransaction(DidMethodOperation.UPDATE, event, this.privateKey);
+        await this.submitTransaction(DidMethodOperation.UPDATE, event, this.privateKey!);
 
         return this;
     }
@@ -368,7 +370,7 @@ export class HcsDid {
         this.validateClientConfig();
 
         const event = new HcsDidRevokeVerificationRelationshipEvent(args.id, args.relationshipType);
-        await this.submitTransaction(DidMethodOperation.REVOKE, event, this.privateKey);
+        await this.submitTransaction(DidMethodOperation.REVOKE, event, this.privateKey!);
 
         return this;
     }
@@ -437,7 +439,7 @@ export class HcsDid {
             DidSyntax.DID_METHOD_SEPARATOR +
             HcsDid.publicKeyToIdString(publicKey) +
             DidSyntax.DID_TOPIC_SEPARATOR +
-            this.topicId.toString();
+            this.topicId!.toString();
 
         return ret;
     }
@@ -476,7 +478,7 @@ export class HcsDid {
                 throw new DidError("DID string is invalid. Invalid Hedera network.", DidErrorCode.INVALID_NETWORK);
             }
 
-            const didIdString = didParts.shift();
+            const didIdString = didParts.shift() || "";
 
             if (didIdString.length < 44 || didParts.shift()) {
                 throw new DidError(
@@ -491,7 +493,7 @@ export class HcsDid {
                 throw e;
             }
 
-            throw new DidError("DID string is invalid. " + e.message, DidErrorCode.INVALID_DID_STRING);
+            throw new DidError("DID string is invalid. " + (e as Error).message, DidErrorCode.INVALID_DID_STRING);
         }
     }
 
@@ -517,9 +519,9 @@ export class HcsDid {
         event: HcsDidEvent,
         privateKey: PrivateKey
     ): Promise<MessageEnvelope<HcsDidMessage>> {
-        const message = new HcsDidMessage(didMethodOperation, this.getIdentifier(), event);
+        const message = new HcsDidMessage(didMethodOperation, this.getIdentifier()!, event);
         const envelope = new MessageEnvelope(message);
-        const transaction = new HcsDidTransaction(envelope, this.getTopicId());
+        const transaction = new HcsDidTransaction(envelope, this.getTopicId()!);
 
         return new Promise((resolve, reject) => {
             transaction
@@ -529,8 +531,8 @@ export class HcsDid {
                 .buildAndSignTransaction((tx) => {
                     return tx
                         .setMaxTransactionFee(HcsDid.TRANSACTION_FEE)
-                        .freezeWith(this.client)
-                        .sign(this.privateKey);
+                        .freezeWith(this.client!)
+                        .sign(this.privateKey!);
                 })
                 .onError((err) => {
                     // console.error(err);
@@ -547,7 +549,7 @@ export class HcsDid {
                     );
                     resolve(msg);
                 })
-                .execute(this.client);
+                .execute(this.client!);
         });
     }
 }

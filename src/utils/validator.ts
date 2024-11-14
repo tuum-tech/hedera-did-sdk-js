@@ -1,7 +1,7 @@
 import { DidError } from "../identity/did-error";
 
 export class Validator {
-    protected validationErrors: string[];
+    protected validationErrors: string[] = [];
 
     public addValidationError(errorMessage: string): void {
         if (!this.validationErrors) {
@@ -11,7 +11,7 @@ export class Validator {
     }
 
     public checkValidationErrors(prologue: string, validationFunction: (input: Validator) => void): void {
-        this.validationErrors = null;
+        this.validationErrors = [];
 
         validationFunction(this);
 
@@ -20,7 +20,7 @@ export class Validator {
         }
 
         const errors = this.validationErrors;
-        this.validationErrors = null;
+        this.validationErrors = [];
 
         throw new DidError(prologue + ":\n" + errors.join("\n"));
     }

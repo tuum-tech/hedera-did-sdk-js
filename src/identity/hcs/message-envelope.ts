@@ -19,16 +19,16 @@ export class MessageEnvelope<T extends HcsDidMessage> {
 
     private static serialVersionUID = Long.fromInt(1);
 
-    protected message: T;
-    protected signature: string;
+    protected message: T | null = null;
+    protected signature: string = "";
 
     protected get messageJson(): string {
         if (!this.message) {
-            return null;
+            return "";
         }
         return this.message.toJSON();
     }
-    protected mirrorResponse: SerializableMirrorConsensusResponse;
+    protected mirrorResponse: SerializableMirrorConsensusResponse | null = null;
 
     /**
      * Creates a new message envelope for the given message.
@@ -64,7 +64,7 @@ export class MessageEnvelope<T extends HcsDidMessage> {
             throw new DidError("Message is already signed.");
         }
 
-        const msgBytes = ArraysUtils.fromString(this.message.toJSON());
+        const msgBytes = ArraysUtils.fromString(this.message!.toJSON());
         const signatureBytes = signer(msgBytes);
         this.signature = Base64.fromUint8Array(signatureBytes);
 
@@ -178,7 +178,7 @@ export class MessageEnvelope<T extends HcsDidMessage> {
      * @param decrypter The function used to decrypt the message.
      * @return The message object in a plain mode.
      */
-    public open(): T {
+    public open(): T | null {
         return this.message;
     }
 
@@ -186,11 +186,11 @@ export class MessageEnvelope<T extends HcsDidMessage> {
         return this.signature;
     }
 
-    public getConsensusTimestamp(): Timestamp {
+    public getConsensusTimestamp(): Timestamp | null {
         return !this.mirrorResponse ? null : this.mirrorResponse.consensusTimestamp;
     }
 
-    public getMirrorResponse(): SerializableMirrorConsensusResponse {
+    public getMirrorResponse(): SerializableMirrorConsensusResponse | null {
         return this.mirrorResponse;
     }
 }

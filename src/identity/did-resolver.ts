@@ -35,10 +35,12 @@ export function getResolver(client?: Client): Record<string, DIDResolver> {
 }
 
 export class HederaDidResolver {
-    private client: Client;
+    private client: Client | undefined;
 
     constructor(client?: Client) {
-        this.client = client;
+        if (client) {
+            this.client = client;
+        }
     }
 
     public getClient(networkName: string) {
