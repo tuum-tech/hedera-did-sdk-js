@@ -34,7 +34,6 @@ export class Hashing {
     /**
      * @returns Multibase [MULTIBASE] base58-btc encoded value that is a concatenation of the
      * MULTIBASE(base58-btc, raw-public-key-bytes)
-     * https://github.com/multiformats/multibase
      * https://www.w3.org/TR/did-core/#dfn-publickeymultibase
      */
     public static readonly multibase = {

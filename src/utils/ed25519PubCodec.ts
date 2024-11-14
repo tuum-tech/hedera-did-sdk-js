@@ -1,55 +1,51 @@
-// @ts-check
-
-import { BlockCodec, ByteView } from "multiformats/codecs/interface";
-
 /**
- * Ed25519PubCodec MULTICODEC(public-key-type, raw-public-key-bytes)
- * https://github.com/multiformats/js-multiformats#multicodec-encoders--decoders--codecs
- * Implementation of BlockCodec interface which implements both BlockEncoder and BlockDecoder.
- * @template T
- * @typedef {import('./interface').ByteView<T>} ByteView
+ * Custom Ed25519 Public Key Codec
+ * Encodes and decodes data with a predefined multicodec prefix.
  */
-
-export class Ed25519PubCodec implements BlockCodec<number, Uint8Array> {
-    // values retrieved from https://raw.githubusercontent.com/multiformats/multicodec/master/table.csv
+export class Ed25519PubCodec {
+    // Codec metadata
     name: string = "ed25519-pub";
     code: number = 0xed;
 
-    encode(data: Uint8Array): ByteView<Uint8Array> {
+    /**
+     * Encodes data by prefixing it with the codec code.
+     * @param {Uint8Array} data - The raw public key data.
+     * @returns {Uint8Array} - Encoded data with codec prefix.
+     */
+    encode(data: Uint8Array): Uint8Array {
         const prefix = this.varintEncode(this.code);
         return this.concat([prefix, data], prefix.length + data.length);
     }
 
-    decode(bytes: ByteView<Uint8Array>): Uint8Array {
+    /**
+     * Decodes data by removing the codec prefix.
+     * @param {Uint8Array} bytes - Encoded data with codec prefix.
+     * @returns {Uint8Array} - Raw public key data.
+     */
+    decode(bytes: Uint8Array): Uint8Array {
         return this.rmPrefix(bytes);
     }
 
     /**
-     * Returns a new Uint8Array created by concatenating the passed ArrayLikes
-     *
-     * @param {Array<ArrayLike<number>>} arrays
-     * @param {number} [length]
+     * Concatenates multiple Uint8Arrays into a single Uint8Array.
+     * @param {Uint8Array[]} arrays - Arrays to concatenate.
+     * @param {number} length - Total length of the resulting array.
+     * @returns {Uint8Array} - Concatenated array.
      */
-    private concat(arrays: Array<ArrayLike<number>>, length: number) {
-        if (!length) {
-            length = arrays.reduce((acc, curr) => acc + curr.length, 0);
-        }
-
+    private concat(arrays: Uint8Array[], length: number): Uint8Array {
         const output = new Uint8Array(length);
         let offset = 0;
-
         for (const arr of arrays) {
             output.set(arr, offset);
             offset += arr.length;
         }
-
         return output;
     }
 
     /**
-     * Encodes a number as varint.
-     * @param {number} num
-     * @returns {Uint8Array}
+     * Encodes an integer using variable-length encoding.
+     * @param {number} num - The integer to encode.
+     * @returns {Uint8Array} - Varint encoded number.
      */
     private varintEncode(num: number): Uint8Array {
         const result = [];
@@ -62,24 +58,16 @@ export class Ed25519PubCodec implements BlockCodec<number, Uint8Array> {
     }
 
     /**
-     * Decodes a varint from a Uint8Array and returns the number.
-     * Also adjusts the view to skip the varint bytes.
-     * @param {Uint8Array} data
-     * @returns {Uint8Array}
+     * Removes the codec prefix from the encoded data.
+     * @param {Uint8Array} data - Encoded data with prefix.
+     * @returns {Uint8Array} - Data without prefix.
      */
     private rmPrefix(data: Uint8Array): Uint8Array {
-        let num = 0;
-        let shift = 0;
         let bytesUsed = 0;
-
         for (let i = 0; i < data.length; i++) {
-            const byte = data[i];
-            num |= (byte & 0x7f) << shift;
-            shift += 7;
             bytesUsed++;
-            if ((byte & 0x80) === 0) break;
+            if ((data[i] & 0x80) === 0) break;
         }
-
         return data.slice(bytesUsed);
     }
 }
