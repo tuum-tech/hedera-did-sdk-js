@@ -1,13 +1,7 @@
 import * as crypto from "crypto";
 import { Base64 } from "js-base64";
 import { MultibaseDecoder, MultibaseEncoder } from "multiformats/bases/interface";
-import { baseX } from "multiformats/dist/types/src/bases/base";
-
-const base58btc = baseX({
-    name: "base58btc",
-    prefix: "z",
-    alphabet: "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz",
-});
+import { bases } from "multiformats/basics";
 
 export class Hashing {
     public static readonly sha256 = {
@@ -31,10 +25,10 @@ export class Hashing {
 
     public static readonly base58 = {
         decode: function (encodedString: string): Uint8Array {
-            return base58btc.decode(encodedString); // using multiformats for base58 decoding
+            return bases.base58btc.decode(encodedString); // using multiformats for base58 decoding
         },
         encode: function (decodedBytes: Uint8Array): string {
-            return base58btc.encode(decodedBytes); // using multiformats for base58 encoding
+            return bases.base58btc.encode(decodedBytes); // using multiformats for base58 encoding
         },
     };
 
@@ -45,10 +39,10 @@ export class Hashing {
      * https://www.w3.org/TR/did-core/#dfn-publickeymultibase
      */
     public static readonly multibase = {
-        encode: function (data: Uint8Array, base: MultibaseEncoder<string> = base58btc): string {
+        encode: function (data: Uint8Array, base: MultibaseEncoder<string> = bases.base58btc): string {
             return base.encode(data);
         },
-        decode: function (data: string, base: MultibaseDecoder<string> = base58btc): Uint8Array {
+        decode: function (data: string, base: MultibaseDecoder<string> = bases.base58btc): Uint8Array {
             return base.decode(data);
         },
     };

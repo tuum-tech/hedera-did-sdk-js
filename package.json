@@ -1,6 +1,6 @@
 {
     "name": "@tuum-tech/hedera-did-sdk-js",
-    "version": "0.0.6",
+    "version": "0.0.7",
     "description": "Support for the Hedera Hashgraph DID Method on the Hedera JavaScript/TypeScript SDK",
     "main": "dist/index.js",
     "module": "dist/index.js",
