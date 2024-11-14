@@ -57,15 +57,13 @@ export class HcsDidTopicListener {
      * @return This listener instance.
      */
     public subscribe(client: Client, receiver: (input: MessageEnvelope<HcsDidMessage>) => void): HcsDidTopicListener {
-        const errorHandler = (message: TopicMessage, error: Error) => {
+        const errorHandler = (message: TopicMessage | null, error: Error) => {
             this.handleError(error);
         };
         const listener = (message: TopicMessage) => {
             this.handleResponse(message, receiver);
         };
-
         this.subscriptionHandle = this.query.subscribe(client, errorHandler, listener);
-
         return this;
     }
 
