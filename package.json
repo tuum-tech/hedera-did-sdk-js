@@ -1,6 +1,6 @@
 {
     "name": "@tuum-tech/hedera-did-sdk-js",
-    "version": "0.0.1",
+    "version": "0.0.2",
     "engines": {
         "npm": ">=8.1.2",
         "node": ">=16.13.1"
@@ -44,12 +44,10 @@
     },
     "dependencies": {
         "@hashgraph/sdk": "^2.28.0",
-        "base58-js": "^1.0.5",
+        "dayjs": "^1.11.13",
         "did-resolver": "^3.1.5",
         "js-base64": "^3.7.5",
-        "moment": "^2.29.1",
-        "multiformats": "^9.6.2",
-        "varint": "^6.0.0"
+        "multiformats": "^9.6.2"
     },
     "publishConfig": {
         "access": "public",

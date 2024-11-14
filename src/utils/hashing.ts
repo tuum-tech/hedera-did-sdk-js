@@ -1,4 +1,3 @@
-import * as Base58 from "base58-js";
 import * as crypto from "crypto";
 import { Base64 } from "js-base64";
 import { base58btc } from "multiformats/bases/base58";
@@ -26,10 +25,10 @@ export class Hashing {
 
     public static readonly base58 = {
         decode: function (encodedString: string): Uint8Array {
-            return Base58.base58_to_binary(encodedString);
+            return base58btc.decode(encodedString); // using multiformats for base58 decoding
         },
         encode: function (decodedBytes: Uint8Array): string {
-            return Base58.binary_to_base58(decodedBytes);
+            return base58btc.encode(decodedBytes); // using multiformats for base58 encoding
         },
     };
 

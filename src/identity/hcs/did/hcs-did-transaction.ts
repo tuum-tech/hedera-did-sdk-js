@@ -1,11 +1,14 @@
 import { Client, Timestamp, TopicId, TopicMessageSubmitTransaction, Transaction, TransactionId } from "@hashgraph/sdk";
-import moment from "moment";
+import dayjs from "dayjs";
+import utc from "dayjs/plugin/utc";
 import { ArraysUtils } from "../../../utils/arrays-utils";
 import { Validator } from "../../../utils/validator";
 import { DidError } from "../../did-error";
 import { MessageEnvelope } from "../message-envelope";
 import { HcsDidMessage, Signer } from "./hcs-did-message";
 import { HcsDidTopicListener } from "./hcs-did-topic-listener";
+
+dayjs.extend(utc);
 
 /**
  * The DID document creation, update or deletion transaction.
@@ -132,9 +135,7 @@ export class HcsDidTransaction {
         if (this.receiver) {
             this.listener = this.provideTopicListener(this.topicId);
             this.listener
-                .setStartTime(
-                    Timestamp.fromDate(moment().subtract(HcsDidTransaction.SUBTRACT_TIME, "seconds").toDate())
-                )
+                .setStartTime(Timestamp.fromDate(dayjs().subtract(HcsDidTransaction.SUBTRACT_TIME, "seconds").toDate()))
                 .setIgnoreErrors(false)
                 .addFilter((response) => {
                     return ArraysUtils.equals(messageContent, response.contents);

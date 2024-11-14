@@ -1,5 +1,8 @@
 import { Timestamp } from "@hashgraph/sdk";
-import moment from "moment";
+import dayjs from "dayjs";
+import utc from "dayjs/plugin/utc";
+
+dayjs.extend(utc);
 
 export class TimestampUtils {
     public static ISO = "YYYY-MM-DDTHH:mm:ss.SSS[Z]";
@@ -7,11 +10,11 @@ export class TimestampUtils {
 
     public static toJSON(item: Timestamp, format: string = this.ISO): string {
         const d = item.toDate();
-        return moment(d).utc().format(format);
+        return dayjs(d).utc().format(format);
     }
 
     public static fromJson(json: string, format: string = this.ISO): Timestamp {
-        const d = moment.utc(json, format).toDate();
+        const d = dayjs.utc(json, format).toDate();
         return Timestamp.fromDate(d);
     }
 
@@ -39,6 +42,6 @@ export class TimestampUtils {
         if (a.seconds.equals(b.seconds)) {
             return a.nanos.lessThan(b.nanos);
         }
-        a.seconds.lessThan(b.seconds);
+        return a.seconds.lessThan(b.seconds);
     }
 }
