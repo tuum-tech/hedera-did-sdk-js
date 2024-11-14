@@ -1,4 +1,3 @@
-import fetch from "node-fetch";
 import { HcsDidCreateDidDocumentEvent } from "../identity/hcs/did/event/document/hcs-did-create-did-document-event";
 
 const IPFS_IO_HTTP_PROXY = "https://ipfs.io/ipfs/";
@@ -9,10 +8,11 @@ export class IpfsDidDocumentDownloader {
     async downloadDocument(docEvent: HcsDidCreateDidDocumentEvent) {
         const url = docEvent.getUrl() ?? `${this.ipfsHttpProxy}/${docEvent.getCid}`;
 
-        const result = await fetch(url);
+        const result = await fetch(url); // Using the native fetch API
         if (!result.ok) {
             throw new Error(`DID document could not be fetched from URL: ${url}`);
         }
+
         try {
             return await result.json();
         } catch (err) {

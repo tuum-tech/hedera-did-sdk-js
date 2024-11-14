@@ -1,23 +1,16 @@
 {
-  "compilerOptions": {
-    "module": "commonjs",
-    "target": "es6",
-    "lib": [
-      "es5",
-      "es6"
-    ],
-    "moduleResolution": "node",
-    "outDir": "dist/",
-    "emitDecoratorMetadata": true,
-    "experimentalDecorators": true,
-    "esModuleInterop": true,
-    "declaration": true
-  },
-  "include": [
-    "src/**/*"
-  ],
-  "exclude": [
-    "node_modules"
-  ],
-  "compileOnSave": true
+    "compilerOptions": {
+        "module": "commonjs",
+        "target": "es6",
+        "lib": ["DOM", "es5", "es6"],
+        "moduleResolution": "node",
+        "outDir": "dist/",
+        "emitDecoratorMetadata": true,
+        "experimentalDecorators": true,
+        "esModuleInterop": true,
+        "declaration": true
+    },
+    "include": ["src/**/*"],
+    "exclude": ["node_modules"],
+    "compileOnSave": true
 }

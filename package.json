@@ -1,6 +1,6 @@
 {
-    "name": "@hashgraph/did-sdk-js",
-    "version": "1.0.0",
+    "name": "@tuum-tech/hedera-did-sdk-js",
+    "version": "0.0.1",
     "engines": {
         "npm": ">=8.1.2",
         "node": ">=16.13.1"
@@ -36,7 +36,6 @@
     "devDependencies": {
         "@types/jest": "^27.4.0",
         "@types/node": "^16.7.7",
-        "@types/node-fetch": "^2.6.4",
         "jest": "^27.5.0",
         "nodemon": "^2.0.7",
         "prettier": "2.5.1",
@@ -50,7 +49,6 @@
         "js-base64": "^3.7.5",
         "moment": "^2.29.1",
         "multiformats": "^9.6.2",
-        "node-fetch": "^2.6.12",
         "varint": "^6.0.0"
     }
 }
