@@ -7,6 +7,7 @@ import {
     TopicCreateTransaction,
     TopicId,
     TopicUpdateTransaction,
+    TransactionId,
 } from "@hashgraph/sdk";
 import { Hashing } from "../../../utils/hashing";
 import { DidDocument } from "../../did-document";
@@ -44,26 +45,31 @@ export class HcsDid {
 
     protected client?: Client;
     protected privateKey?: PrivateKey;
+    protected privateKeyCurve: string = "Ed25519"; // Or 'Secp256k1';
     protected identifier?: string;
-    protected network: string = DidSyntax.HEDERA_NETWORK_MAINNET;
+    protected network?: string;
     protected topicId: TopicId | undefined | null;
 
     protected messages: HcsDidMessage[] = [];
     protected resolvedAt: Timestamp = Timestamp.generate();
     protected document?: DidDocument;
 
-    protected onMessageConfirmed?: (message: MessageEnvelope<HcsDidMessage>) => void;
-
     constructor(args: {
+        network?: string;
         identifier?: string;
         privateKey?: PrivateKey;
+        privateKeyCurve?: string;
         client?: Client;
-        onMessageConfirmed?: (message: MessageEnvelope<HcsDidMessage>) => void;
     }) {
+        this.network = args.network;
         this.identifier = args.identifier;
         this.privateKey = args.privateKey;
+        if (args.privateKeyCurve !== "Secp256k1" && args.privateKeyCurve !== "Ed25519") {
+            throw new DidError("Invalid private key curve. Supported curves are 'Secp256k1' and 'Ed25519'");
+        }
+        this.privateKeyCurve = args.privateKeyCurve;
+
         this.client = args.client;
-        this.onMessageConfirmed = args.onMessageConfirmed;
 
         if (!this.identifier && !this.privateKey) {
             throw new DidError("identifier and privateKey cannot both be empty");
@@ -104,7 +110,6 @@ export class HcsDid {
             const topicId = (await txId.getReceipt(this.client!)).topicId;
 
             this.topicId = topicId;
-            this.network = this.client!.network.toString();
             this.identifier = this.buildIdentifier(this.privateKey!.publicKey);
         }
 
@@ -114,7 +119,8 @@ export class HcsDid {
         const event = new HcsDidCreateDidOwnerEvent(
             this.identifier + "#did-root-key",
             this.identifier,
-            this.privateKey!.publicKey
+            this.privateKey!.publicKey,
+            this.privateKeyCurve
         );
         await this.submitTransaction(DidMethodOperation.CREATE, event, this.privateKey!);
 
@@ -391,6 +397,10 @@ export class HcsDid {
         return this.privateKey;
     }
 
+    public getPrivateKeyCurve() {
+        return this.privateKeyCurve;
+    }
+
     public getTopicId() {
         return this.topicId;
     }
@@ -518,38 +528,16 @@ export class HcsDid {
         didMethodOperation: DidMethodOperation,
         event: HcsDidEvent,
         privateKey: PrivateKey
-    ): Promise<MessageEnvelope<HcsDidMessage>> {
+    ): Promise<TransactionId> {
         const message = new HcsDidMessage(didMethodOperation, this.getIdentifier()!, event);
         const envelope = new MessageEnvelope(message);
-        const transaction = new HcsDidTransaction(envelope, this.getTopicId()!);
+        let transaction = new HcsDidTransaction(envelope, this.getTopicId()!);
 
-        return new Promise((resolve, reject) => {
-            transaction
-                .signMessage((msg) => {
-                    return privateKey.sign(msg);
-                })
-                .buildAndSignTransaction((tx) => {
-                    return tx
-                        .setMaxTransactionFee(HcsDid.TRANSACTION_FEE)
-                        .freezeWith(this.client!)
-                        .sign(this.privateKey!);
-                })
-                .onError((err) => {
-                    // console.error(err);
-                    reject(err);
-                })
-                .onMessageConfirmed((msg) => {
-                    if (this.onMessageConfirmed) {
-                        this.onMessageConfirmed(msg);
-                    }
-
-                    console.log("Message Published");
-                    console.log(
-                        `Explore on DragonGlass: https://testnet.dragonglass.me/hedera/topics/${this.getTopicId()}`
-                    );
-                    resolve(msg);
-                })
-                .execute(this.client!);
+        transaction.signMessage((msg) => privateKey.sign(msg));
+        const signedTransaction = transaction.buildAndSignTransaction((tx) => {
+            return tx.setMaxTransactionFee(HcsDid.TRANSACTION_FEE).freezeWith(this.client!).sign(privateKey);
         });
+
+        return await signedTransaction.execute(this.client!);
     }
 }

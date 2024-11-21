@@ -5,16 +5,17 @@ import { HcsDidEvent } from "../hcs-did-event";
 import { HcsDidEventTargetName } from "../hcs-did-event-target-name";
 
 export class HcsDidCreateDidOwnerEvent extends HcsDidEvent {
-    public static KEY_TYPE = "Ed25519VerificationKey2018";
+    public static ECDSA_SECP256K1_KEY_TYPE = "EcdsaSecp256k1VerificationKey2019";
+    public static ED25519_KEY_TYPE = "Ed25519VerificationKey2018";
 
     public readonly targetName = HcsDidEventTargetName.DID_OWNER;
 
     protected id: string;
-    protected type = HcsDidCreateDidOwnerEvent.KEY_TYPE;
+    protected type = HcsDidCreateDidOwnerEvent.ED25519_KEY_TYPE;
     protected controller: string;
     protected publicKey: PublicKey;
 
-    constructor(id: string, controller: string, publicKey: PublicKey) {
+    constructor(id: string, controller: string, publicKey: PublicKey, privateKeyCurve?: string) {
         super();
 
         if (!id || !controller || !publicKey) {
@@ -28,6 +29,11 @@ export class HcsDidCreateDidOwnerEvent extends HcsDidEvent {
         this.id = id;
         this.controller = controller;
         this.publicKey = publicKey;
+        if (privateKeyCurve === "Secp256k1") {
+            this.type = HcsDidCreateDidOwnerEvent.ECDSA_SECP256K1_KEY_TYPE;
+        } else if (privateKeyCurve === "Ed25519") {
+            this.type = HcsDidCreateDidOwnerEvent.ED25519_KEY_TYPE;
+        }
     }
 
     public getId() {

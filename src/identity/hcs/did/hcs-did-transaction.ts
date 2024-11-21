@@ -1,4 +1,4 @@
-import { Client, Timestamp, TopicId, TopicMessageSubmitTransaction, Transaction, TransactionId } from "@hashgraph/sdk";
+import { Client, TopicId, TopicMessageSubmitTransaction, Transaction, TransactionId } from "@hashgraph/sdk";
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
 import { ArraysUtils } from "../../../utils/arrays-utils";
@@ -69,17 +69,6 @@ export class HcsDidTransaction {
     }
 
     /**
-     * Handles event from a mirror node when a message was consensus was reached and message received.
-     *
-     * @param receiver The receiver handling incoming message.
-     * @return This transaction instance.
-     */
-    public onMessageConfirmed(receiver: (input: MessageEnvelope<HcsDidMessage>) => void): HcsDidTransaction {
-        this.receiver = receiver;
-        return this;
-    }
-
-    /**
      * Defines a handler for errors when they happen during execution.
      *
      * @param handler The error handler.
@@ -130,30 +119,6 @@ export class HcsDidTransaction {
         const messageContent = !envelope.getSignature()
             ? envelope.sign(this.signer!) // Ensure `signer` exists with `!`
             : ArraysUtils.fromString(envelope.toJSON());
-
-        if (this.receiver) {
-            this.listener = this.provideTopicListener(this.topicId);
-            this.listener
-                .setStartTime(Timestamp.fromDate(dayjs().subtract(HcsDidTransaction.SUBTRACT_TIME, "seconds").toDate()))
-                .setIgnoreErrors(false)
-                .addFilter((response) => {
-                    return ArraysUtils.equals(messageContent, response.contents);
-                })
-                .onError((err) => {
-                    return this.handleError(err);
-                })
-                .onInvalidMessageReceived((response, reason) => {
-                    if (!ArraysUtils.equals(messageContent, response.contents)) {
-                        return;
-                    }
-                    this.handleError(new DidError(reason + ": " + ArraysUtils.toString(response.contents)));
-                    this.listener?.unsubscribe();
-                })
-                .subscribe(client, (msg) => {
-                    this.listener?.unsubscribe();
-                    this.receiver?.(msg);
-                });
-        }
 
         const tx = new TopicMessageSubmitTransaction().setTopicId(this.topicId).setMessage(messageContent);
         let transactionId: TransactionId | undefined;

@@ -15,12 +15,13 @@ export class Validator {
 
         validationFunction(this);
 
-        if (!this.validationErrors) {
+        // If there are no errors, exit early
+        if (this.validationErrors.length === 0) {
             return;
         }
 
         const errors = this.validationErrors;
-        this.validationErrors = [];
+        this.validationErrors = []; // Clear errors after processing
 
         throw new DidError(prologue + ":\n" + errors.join("\n"));
     }
