@@ -7,8 +7,10 @@ export class IpfsDidDocumentDownloader {
 
     async downloadDocument(docEvent: HcsDidCreateDidDocumentEvent) {
         const url = docEvent.getUrl() ?? `${this.ipfsHttpProxy}/${docEvent.getCid}`;
+        console.log("ipfs url: ", url);
 
         const result = await fetch(url); // Using the native fetch API
+        console.log("result: ", JSON.stringify(result, null, 2));
         if (!result.ok) {
             throw new Error(`DID document could not be fetched from URL: ${url}`);
         }

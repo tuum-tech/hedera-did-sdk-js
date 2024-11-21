@@ -1,4 +1,4 @@
-import { Client, Timestamp, TopicId } from "@hashgraph/sdk";
+import { Timestamp, TopicId } from "@hashgraph/sdk";
 import Long from "long";
 import { Validator } from "../../../utils/validator";
 import { MessageEnvelope } from "../message-envelope";
@@ -6,7 +6,7 @@ import { HcsDidMessage } from "./hcs-did-message";
 import { HcsDidTopicListener } from "./hcs-did-topic-listener";
 
 /**
- * Resolves the DID Events from Hedera network.
+ * Resolves the DID Events from the Hedera network using the Mirror Node REST API.
  */
 export class HcsDidEventMessageResolver {
     /**
@@ -16,9 +16,8 @@ export class HcsDidEventMessageResolver {
 
     protected topicId: TopicId;
     protected messages: MessageEnvelope<HcsDidMessage>[] = [];
-
     private lastMessageArrivalTime: Long;
-    private nextMessageArrivalTimeout: NodeJS.Timeout | null = null;
+    private nextMessageArrivalTimeout: NodeJS.Timeout | undefined;
     private resultsHandler: ((input: MessageEnvelope<HcsDidMessage>[]) => void) | undefined;
     private errorHandler: ((input: Error) => void) | undefined;
     private existingSignatures: string[] = [];
@@ -29,54 +28,70 @@ export class HcsDidEventMessageResolver {
      * Instantiates a new DID resolver for the given DID topic.
      *
      * @param topicId The HCS DID topic ID.
+     * @param baseUrl The base URL of the mirror node API.
+     * @param startTime Optional start time for the listener.
      */
-    constructor(topicId: TopicId, startTime: Timestamp = new Timestamp(0, 0)) {
+    constructor(topicId: TopicId, baseUrl: string, startTime: Timestamp = new Timestamp(0, 0)) {
         this.topicId = topicId;
-        this.listener = new HcsDidTopicListener(this.topicId, startTime);
+        this.listener = new HcsDidTopicListener(this.topicId, baseUrl, startTime);
+
         this.noMoreMessagesTimeout = HcsDidEventMessageResolver.DEFAULT_TIMEOUT;
         this.lastMessageArrivalTime = Long.fromInt(Date.now());
     }
 
-    public execute(client: Client): void {
+    /**
+     * Executes the message resolution process.
+     */
+    public async execute(): Promise<void> {
         new Validator().checkValidationErrors("Resolver not executed: ", (v) => {
             return this.validate(v);
         });
+
         this.existingSignatures = [];
-        this.listener
-            .setEndTime(Timestamp.fromDate(new Date()))
-            .setIgnoreErrors(false)
-            .onError(this.errorHandler || ((err) => console.error("Error:", err)))
-            .onComplete(() => this.finish())
-            .subscribe(client, (msg) => {
-                return this.handleMessage(msg);
-            });
-        this.lastMessageArrivalTime = Long.fromInt(Date.now());
-        this.waitOrFinish();
+
+        try {
+            await this.listener
+                .setIgnoreErrors(false)
+                .onError(this.errorHandler || ((err) => console.error("Error:", err)))
+                .subscribe((msg) => {
+                    this.handleMessage(msg);
+                });
+
+            this.lastMessageArrivalTime = Long.fromInt(Date.now());
+            await this.waitOrFinish();
+        } catch (error) {
+            if (this.errorHandler) {
+                this.errorHandler(error as Error);
+            }
+        }
     }
 
     /**
-     * Handles incoming DID messages from DID Topic on a mirror node.
+     * Handles incoming DID messages from the topic.
      *
-     * @param envelope The parsed message envelope in a PLAIN mode.
+     * @param envelope The parsed message envelope.
      */
     private handleMessage(envelope: MessageEnvelope<HcsDidMessage>): void {
         this.lastMessageArrivalTime = Long.fromInt(Date.now());
+
         const message = envelope.open();
         if (message === null || !this.matchesSearchCriteria(message)) {
             return;
         }
-        if (this.existingSignatures.includes(envelope.getSignature())) {
+        if (this.existingSignatures.indexOf(envelope.getSignature()) !== -1) {
             return;
         }
+
         this.existingSignatures.push(envelope.getSignature());
         this.messages.push(envelope);
     }
 
     /**
-     * Waits for a new message from the topic for the configured amount of time.
+     * Waits for new messages or finishes if the timeout is exceeded.
      */
     protected async waitOrFinish(): Promise<void> {
         const timeDiff = Long.fromInt(Date.now()).sub(this.lastMessageArrivalTime);
+
         if (timeDiff.lessThanOrEqual(this.noMoreMessagesTimeout)) {
             if (this.nextMessageArrivalTimeout) {
                 clearTimeout(this.nextMessageArrivalTimeout);
@@ -87,20 +102,23 @@ export class HcsDidEventMessageResolver {
             );
             return;
         }
+
         await this.finish();
     }
 
+    /**
+     * Finalizes the resolution process and calls the results handler.
+     */
     protected async finish(): Promise<void> {
         if (this.resultsHandler) {
             this.resultsHandler(this.messages);
         }
+
         if (this.nextMessageArrivalTimeout) {
             clearTimeout(this.nextMessageArrivalTimeout);
         }
-        if (this.listener) {
-            this.listener.unsubscribe();
-        }
     }
+
     /**
      * Defines a handler for resolution results.
      * This will be called when the resolution process is finished.
@@ -128,7 +146,7 @@ export class HcsDidEventMessageResolver {
      * Defines a maximum time in milliseconds to wait for new messages from the topic.
      * Default is 30 seconds.
      *
-     * @param timeout The timeout in milliseconds to wait for new messages from the topic.
+     * @param timeout The timeout in milliseconds.
      * @return This resolver instance.
      */
     public setTimeout(timeout: Long | number): HcsDidEventMessageResolver {
@@ -146,6 +164,12 @@ export class HcsDidEventMessageResolver {
         validator.require(!!this.resultsHandler, "Results handler 'whenFinished' not defined.");
     }
 
+    /**
+     * Checks if a message matches the search criteria.
+     *
+     * @param message The message to check.
+     * @return True if the message matches; otherwise, false.
+     */
     protected matchesSearchCriteria(message: HcsDidMessage): boolean {
         return true;
     }

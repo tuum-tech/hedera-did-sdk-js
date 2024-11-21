@@ -13,7 +13,7 @@ import { Hashing } from "../../../utils/hashing";
 import { DidDocument } from "../../did-document";
 import { DidError, DidErrorCode } from "../../did-error";
 import { DidMethodOperation } from "../../did-method-operation";
-import { DidSyntax } from "../../did-syntax";
+import { DEFAULT_HEDERA_MIRRORNODES, DidSyntax } from "../../did-syntax";
 import { MessageEnvelope } from "../message-envelope";
 import { HcsDidDeleteEvent } from "./event/document/hcs-did-delete-event";
 import { HcsDidEvent } from "./event/hcs-did-event";
@@ -47,7 +47,8 @@ export class HcsDid {
     protected privateKey?: PrivateKey;
     protected privateKeyCurve: string = "Ed25519"; // Or 'Secp256k1';
     protected identifier?: string;
-    protected network?: string;
+    protected network?: string = DidSyntax.HEDERA_NETWORK_MAINNET;
+    protected mirrorNodeUrl?: string = DEFAULT_HEDERA_MIRRORNODES[DidSyntax.HEDERA_NETWORK_MAINNET];
     protected topicId: TopicId | undefined | null;
 
     protected messages: HcsDidMessage[] = [];
@@ -61,13 +62,16 @@ export class HcsDid {
         privateKeyCurve?: string;
         client?: Client;
     }) {
-        this.network = args.network;
+        this.network = args.network || this.network;
+        if (this.network) {
+            this.mirrorNodeUrl = DEFAULT_HEDERA_MIRRORNODES[this.network];
+        }
         this.identifier = args.identifier;
         this.privateKey = args.privateKey;
-        if (args.privateKeyCurve !== "Secp256k1" && args.privateKeyCurve !== "Ed25519") {
+        if (args.privateKeyCurve && args.privateKeyCurve !== "Secp256k1" && args.privateKeyCurve !== "Ed25519") {
             throw new DidError("Invalid private key curve. Supported curves are 'Secp256k1' and 'Ed25519'");
         }
-        this.privateKeyCurve = args.privateKeyCurve;
+        this.privateKeyCurve = args.privateKeyCurve || this.privateKeyCurve;
 
         this.client = args.client;
 
@@ -79,6 +83,7 @@ export class HcsDid {
             const [networkName, topicId] = HcsDid.parseIdentifier(this.identifier);
             this.network = networkName;
             this.topicId = topicId;
+            this.mirrorNodeUrl = DEFAULT_HEDERA_MIRRORNODES[this.network];
         }
     }
 
@@ -195,14 +200,19 @@ export class HcsDid {
         }
 
         return new Promise((resolve, reject) => {
-            new HcsDidEventMessageResolver(this.topicId!)
+            // Instantiate the resolver with the topic ID and Mirror Node base URL
+            const resolver = new HcsDidEventMessageResolver(this.topicId!, this.mirrorNodeUrl!);
+
+            resolver
                 .setTimeout(HcsDid.READ_TOPIC_MESSAGES_TIMEOUT)
                 .whenFinished(async (messages) => {
-                    this.messages = messages
-                        .map((msg) => msg.open())
-                        .filter((msg): msg is HcsDidMessage => msg !== null);
-                    this.document = new DidDocument(this.identifier!);
                     try {
+                        // Extract and process messages
+                        this.messages = messages
+                            .map((msg) => msg.open())
+                            .filter((msg): msg is HcsDidMessage => msg !== null);
+
+                        this.document = new DidDocument(this.identifier!);
                         await this.document.processMessages(this.messages);
                         resolve(this.document);
                     } catch (err) {
@@ -210,10 +220,9 @@ export class HcsDid {
                     }
                 })
                 .onError((err) => {
-                    // console.error(err);
                     reject(err);
                 })
-                .execute(this.client!);
+                .execute(); // No client required for execution
         });
     }
 

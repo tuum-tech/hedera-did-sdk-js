@@ -49,8 +49,8 @@ export class HcsDidTransaction {
      * @param topicIdToListen ID of the HCS topic.
      * @return The topic listener for this message on a mirror node.
      */
-    protected provideTopicListener(topicIdToListen: TopicId): HcsDidTopicListener {
-        return new HcsDidTopicListener(topicIdToListen);
+    protected provideTopicListener(topicIdToListen: TopicId, baseUrl: string): HcsDidTopicListener {
+        return new HcsDidTopicListener(topicIdToListen, baseUrl);
     }
 
     /**
@@ -131,7 +131,6 @@ export class HcsDidTransaction {
             }
         } catch (e) {
             this.handleError(e as Error);
-            this.listener?.unsubscribe();
         }
 
         if (!transactionId) {

@@ -1,90 +1,82 @@
-import { Client, Timestamp, TopicId, TopicMessage, TopicMessageQuery } from "@hashgraph/sdk";
-import SubscriptionHandle from "@hashgraph/sdk/lib/topic/SubscriptionHandle";
+import { Timestamp, TopicId } from "@hashgraph/sdk";
 import { DidError } from "../../did-error";
 import { MessageEnvelope } from "../message-envelope";
 import { HcsDidMessage } from "./hcs-did-message";
 
 /**
  * A listener of confirmed {@link HcsDidMessage} messages from a DID topic.
- * Messages are received from a given mirror node, parsed and validated.
+ * Messages are received from the mirror node API, parsed, and validated.
  */
 export class HcsDidTopicListener {
     protected topicId: TopicId;
-    protected query: TopicMessageQuery;
     protected errorHandler: ((input: Error) => void) | undefined;
     protected ignoreErrors: boolean;
-    protected subscriptionHandle: SubscriptionHandle | undefined;
-    protected filters: ((input: TopicMessage) => boolean)[] = [];
-    protected invalidMessageHandler: ((t: TopicMessage, u: string) => void) | undefined;
+    protected filters: ((input: any) => boolean)[] = [];
+    protected invalidMessageHandler: ((t: any, u: string) => void) | undefined;
+    protected baseUrl: string;
 
     /**
      * Creates a new instance of a DID topic listener for the given consensus topic.
      * By default, invalid messages are ignored and errors are not.
      *
-     * @param didTopicId The DID consensus topic ID.
+     * @param topicId The DID consensus topic ID.
+     * @param baseUrl The base URL of the mirror node API.
      */
-    constructor(topicId: TopicId, startTime: Timestamp = new Timestamp(0, 0)) {
+    constructor(topicId: TopicId, baseUrl: string, startTime: Timestamp = new Timestamp(0, 0)) {
         this.topicId = topicId;
-        this.query = new TopicMessageQuery().setTopicId(topicId).setStartTime(startTime);
-
-        this.query.setMaxBackoff(2000);
-        this.query.setMaxAttempts(15);
-
         this.ignoreErrors = false;
+        this.baseUrl = baseUrl;
     }
 
     /**
-     * Adds a custom filter for topic responses from a mirror node.
+     * Adds a custom filter for topic responses from the mirror node.
      * Messages that do not pass the test are skipped before any other checks are run.
      *
      * @param filter The filter function.
      * @return This listener instance.
      */
-    public addFilter(filter: (input: TopicMessage) => boolean): HcsDidTopicListener {
+    public addFilter(filter: (input: any) => boolean): HcsDidTopicListener {
         if (!this.filters) {
             this.filters = [];
         }
         this.filters.push(filter);
-
         return this;
     }
 
     /**
-     * Subscribes to mirror node topic messages stream.
+     * Fetches messages from the mirror node topic messages endpoint.
      *
-     * @param client   Mirror client instance.
      * @param receiver Receiver of parsed messages.
      * @return This listener instance.
      */
-    public subscribe(client: Client, receiver: (input: MessageEnvelope<HcsDidMessage>) => void): HcsDidTopicListener {
-        const errorHandler = (message: TopicMessage | null, error: Error) => {
-            this.handleError(error);
-        };
-        const listener = (message: TopicMessage) => {
-            this.handleResponse(message, receiver);
-        };
-        this.subscriptionHandle = this.query.subscribe(client, errorHandler, listener);
+    public async subscribe(receiver: (input: MessageEnvelope<HcsDidMessage>) => void): Promise<HcsDidTopicListener> {
+        const endpoint = `${this.baseUrl}/api/v1/topics/${this.topicId.toString()}/messages`;
+        try {
+            const response = await fetch(endpoint);
+            if (!response.ok) {
+                throw new Error(`Failed to fetch messages: ${response.statusText}`);
+            }
+
+            const data = await response.json();
+            const messages = data.messages || [];
+            for (const message of messages) {
+                this.handleResponse(message, receiver);
+            }
+        } catch (error) {
+            this.handleError(error as Error);
+        }
         return this;
     }
 
     /**
-     * Stops receiving messages from the topic.
-     */
-    public unsubscribe(): void {
-        if (this.subscriptionHandle) {
-            this.subscriptionHandle.unsubscribe();
-        }
-    }
-
-    /**
-     * Handles incoming messages from the topic on a mirror node.
+     * Handles incoming messages from the mirror node API.
      *
      * @param response Response message coming from the mirror node for the topic.
      * @param receiver Consumer of the result message.
      */
-    protected handleResponse(response: TopicMessage, receiver: (input: MessageEnvelope<HcsDidMessage>) => void) {
+    protected handleResponse(response: any, receiver: (input: MessageEnvelope<HcsDidMessage>) => void): void {
         if (this.filters) {
-            for (let filter of this.filters) {
+            for (const filter of this.filters) {
                 if (!filter(response)) {
                     this.reportInvalidMessage(response, "Message was rejected by external filter");
                     return;
@@ -95,7 +87,7 @@ export class HcsDidTopicListener {
         const envelope = this.extractMessage(response);
 
         if (!envelope) {
-            this.reportInvalidMessage(response, "Extracting envelope from the mirror response failed");
+            this.reportInvalidMessage(response, "Extracting envelope from the response failed");
             return;
         }
 
@@ -107,28 +99,29 @@ export class HcsDidTopicListener {
     /**
      * Extracts and parses the message inside the response object into the given type.
      *
-     * @param response Response message coming from the mirror node for this listener's topic.
+     * @param response Response message from the mirror node API.
      * @return The message inside an envelope.
      */
-    protected extractMessage(response: TopicMessage): MessageEnvelope<HcsDidMessage> | null {
+    protected extractMessage(response: any): MessageEnvelope<HcsDidMessage> | null {
         let result: MessageEnvelope<HcsDidMessage> | null = null;
         try {
-            result = MessageEnvelope.fromMirrorResponse(response, HcsDidMessage);
+            // Assuming message content is Base64 encoded
+            const decodedMessage = Buffer.from(response.message, "base64").toString("utf-8");
+            result = MessageEnvelope.fromJson(decodedMessage, HcsDidMessage);
         } catch (err) {
             this.handleError(err as Error);
         }
-
         return result;
     }
 
     /**
      * Validates the message and its envelope signature.
      *
-     * @param message  The message inside an envelope.
-     * @param response Response message coming from the mirror node for this listener's topic.
+     * @param envelope The message inside an envelope.
+     * @param response Response message from the mirror node API.
      * @return True if the message is valid, False otherwise.
      */
-    protected isMessageValid(envelope: MessageEnvelope<HcsDidMessage>, response: TopicMessage): boolean {
+    protected isMessageValid(envelope: MessageEnvelope<HcsDidMessage>, response: any): boolean {
         try {
             const message: HcsDidMessage | null = envelope.open();
             if (message === null) {
@@ -151,12 +144,10 @@ export class HcsDidTopicListener {
 
     /**
      * Handles the given error internally.
-     * If external error handler is defined, passes the error there, otherwise raises RuntimeException or ignores it
+     * If external error handler is defined, passes the error there, otherwise raises DidError or ignores it
      * depending on a ignoreErrors flag.
      *
      * @param err The error.
-     * @throws RuntimeException Runtime exception with the given error in case external error handler is not defined
-     *                          and errors were not requested to be ignored.
      */
     protected handleError(err: Error): void {
         if (this.errorHandler) {
@@ -172,7 +163,7 @@ export class HcsDidTopicListener {
      * @param response The mirror response.
      * @param reason   The reason why message validation failed.
      */
-    protected reportInvalidMessage(response: TopicMessage, reason: string): void {
+    protected reportInvalidMessage(response: any, reason: string): void {
         if (this.invalidMessageHandler) {
             this.invalidMessageHandler(response, reason);
         }
@@ -191,39 +182,17 @@ export class HcsDidTopicListener {
 
     /**
      * Defines a handler for invalid messages received from the topic.
-     * The first parameter of the handler is the mirror response.
-     * The second parameter is the reason why the message failed validation (if available).
      *
      * @param handler The invalid message handler.
      * @return This transaction instance.
      */
-    public onInvalidMessageReceived(handler: (t: TopicMessage, u: string) => void): HcsDidTopicListener {
+    public onInvalidMessageReceived(handler: (t: any, u: string) => void): HcsDidTopicListener {
         this.invalidMessageHandler = handler;
-        return this;
-    }
-
-    public setStartTime(startTime: Timestamp): HcsDidTopicListener {
-        this.query.setStartTime(startTime);
-        return this;
-    }
-
-    public setEndTime(endTime: Timestamp): HcsDidTopicListener {
-        this.query.setEndTime(endTime);
-        return this;
-    }
-
-    public setLimit(messagesLimit: Long): HcsDidTopicListener {
-        this.query.setLimit(messagesLimit);
         return this;
     }
 
     public setIgnoreErrors(ignoreErrors: boolean): HcsDidTopicListener {
         this.ignoreErrors = ignoreErrors;
-        return this;
-    }
-
-    public onComplete(handler: () => void) {
-        this.query.setCompletionHandler(handler);
         return this;
     }
 }

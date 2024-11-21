@@ -1,4 +1,4 @@
-export module DidSyntax {
+export namespace DidSyntax {
     export const DID_PREFIX = "did";
     export const DID_DOCUMENT_CONTEXT = "https://www.w3.org/ns/did/v1";
     export const DID_METHOD_SEPARATOR = ":";
@@ -11,3 +11,9 @@ export module DidSyntax {
         HEDERA_HCS = "hedera",
     }
 }
+
+export const DEFAULT_HEDERA_MIRRORNODES: Record<string, string> = {
+    [DidSyntax.HEDERA_NETWORK_MAINNET]: "https://mainnet-public.mirrornode.hedera.com",
+    [DidSyntax.HEDERA_NETWORK_TESTNET]: "https://testnet.mirrornode.hedera.com",
+    [DidSyntax.HEDERA_NETWORK_PREVIEWNET]: "https://previewnet.mirrornode.hedera.com",
+};

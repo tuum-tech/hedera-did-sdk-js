@@ -33,6 +33,8 @@ export class HcsDidCreateDidOwnerEvent extends HcsDidEvent {
             this.type = HcsDidCreateDidOwnerEvent.ECDSA_SECP256K1_KEY_TYPE;
         } else if (privateKeyCurve === "Ed25519") {
             this.type = HcsDidCreateDidOwnerEvent.ED25519_KEY_TYPE;
+        } else {
+            throw new DidError(`Invalid private key curve: ${privateKeyCurve}`);
         }
     }
 
@@ -82,6 +84,9 @@ export class HcsDidCreateDidOwnerEvent extends HcsDidEvent {
 
     static fromJsonTree(tree: any): HcsDidCreateDidOwnerEvent {
         const publicKey = PublicKey.fromBytes(Hashing.base58.decode(tree?.publicKeyBase58));
-        return new HcsDidCreateDidOwnerEvent(tree?.id, tree?.controller, publicKey);
+        const type = tree?.type || HcsDidCreateDidOwnerEvent.ED25519_KEY_TYPE; // Default to Ed25519 if type is missing
+        const privateKeyCurve = type === HcsDidCreateDidOwnerEvent.ECDSA_SECP256K1_KEY_TYPE ? "Secp256k1" : "Ed25519";
+
+        return new HcsDidCreateDidOwnerEvent(tree?.id, tree?.controller, publicKey, privateKeyCurve);
     }
 }
