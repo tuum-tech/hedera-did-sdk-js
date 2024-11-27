@@ -17,10 +17,11 @@ import { HcsDidUpdateVerificationMethodEvent } from "./hcs/did/event/verificatio
 import { HcsDidCreateVerificationRelationshipEvent } from "./hcs/did/event/verification-relationship/hcs-did-create-verification-relationship-event";
 import { HcsDidRevokeVerificationRelationshipEvent } from "./hcs/did/event/verification-relationship/hcs-did-revoke-verification-relationship-event";
 import { HcsDidUpdateVerificationRelationshipEvent } from "./hcs/did/event/verification-relationship/hcs-did-update-verification-relationship-event";
+import { ED25519_KEY_TYPE } from "./hcs/did/hcs-did-key-type";
 
 export class DidDocument {
     private readonly id: string;
-    private readonly context: string;
+    private readonly context: string[];
 
     private created: Timestamp | null = null;
     private updated: Timestamp | null = null;
@@ -28,6 +29,7 @@ export class DidDocument {
     private deactivated: boolean = false;
     private downloader: IpfsDidDocumentDownloader = new IpfsDidDocumentDownloader();
 
+    private publicKeyFormat: string = ED25519_KEY_TYPE;
     private controller: any;
     private services: Map<string, any> = new Map();
     private verificationMethods: Map<string, any> = new Map();
@@ -40,16 +42,30 @@ export class DidDocument {
         capabilityDelegation: [],
     };
 
-    constructor(did: string) {
+    constructor(did: string, keyFormat?: string) {
         this.id = did;
-        this.context = DidSyntax.DID_DOCUMENT_CONTEXT;
+        if (keyFormat) {
+            // Check if it exists in DID_VERIFICATION_METHOD_CONTEXTS
+            if (!DidSyntax.DID_VERIFICATION_METHOD_CONTEXTS[keyFormat]) {
+                throw new Error(
+                    `Unsupported key format: ${keyFormat}. Supported formats: ${Object.keys(
+                        DidSyntax.DID_VERIFICATION_METHOD_CONTEXTS
+                    ).join(", ")}`
+                );
+            }
+            this.publicKeyFormat = keyFormat;
+        }
+        this.context = [
+            DidSyntax.DID_DOCUMENT_CONTEXT,
+            DidSyntax.DID_VERIFICATION_METHOD_CONTEXTS[this.publicKeyFormat],
+        ];
     }
 
     public hasOwner() {
         return !!this.controller;
     }
 
-    public getContext(): string {
+    public getContext(): string[] {
         return this.context;
     }
 
@@ -200,7 +216,7 @@ export class DidDocument {
                 );
                 this.verificationMethods = new Map(
                     (doc[DidDocumentJsonProperties.VERIFICATION_METHOD] ?? []).map(
-                        (verificationMethod: { id: any }) => [verificationMethod.id, verificationMethod]
+                        (verificationMethod: { id: string }) => [verificationMethod.id, verificationMethod]
                     )
                 );
 
@@ -264,7 +280,7 @@ export class DidDocument {
                     if (!this.verificationMethods.has(event.getId())) {
                         this.verificationMethods.set(
                             event.getId(),
-                            (event as HcsDidCreateVerificationRelationshipEvent).getVerificationMethodDef()
+                            (event as HcsDidCreateVerificationRelationshipEvent).getVerificationRelationshipDef()
                         );
                     }
                     this.setDocumentUpdated(message);
@@ -324,7 +340,7 @@ export class DidDocument {
 
                     this.verificationMethods.set(
                         event.getId(),
-                        (event as HcsDidUpdateVerificationRelationshipEvent).getVerificationMethodDef()
+                        (event as HcsDidUpdateVerificationRelationshipEvent).getVerificationRelationshipDef()
                     );
                     this.setDocumentUpdated(message);
                 } else {

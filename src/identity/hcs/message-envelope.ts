@@ -105,7 +105,6 @@ export class MessageEnvelope<T extends HcsDidMessage> {
     ): MessageEnvelope<U> {
         const msgJson = ArraysUtils.toString(response.contents);
         const result = MessageEnvelope.fromJson(msgJson, messageClass);
-        // console.log(result);
         result.mirrorResponse = new SerializableMirrorConsensusResponse(response);
 
         return result;
@@ -184,6 +183,10 @@ export class MessageEnvelope<T extends HcsDidMessage> {
 
     public getSignature(): string {
         return this.signature;
+    }
+
+    public setSignature(signature: string): void {
+        this.signature = signature;
     }
 
     public getConsensusTimestamp(): Timestamp | null {

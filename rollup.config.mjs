@@ -10,13 +10,21 @@ export default {
         format: "es", // ensures ES module format
     },
     context: "this", // sets the global `this` context
+    external: [
+        "uint8arrays", // Treat this as an external dependency
+        "multiformats", // Treat this as an external dependency
+    ],
     plugins: [
         resolve({
             browser: true, // ensures we get browser-compatible versions
             preferBuiltins: false, // avoid Node built-ins
+            extensions: [".js", ".ts"], // Ensure TypeScript files are resolved
         }),
         commonjs(), // Transpile CommonJS modules to ESM
         json(), // Handle JSON imports, if any
-        typescript({ tsconfig: "./tsconfig.json" }), // Transpile TypeScript to JavaScript
+        typescript({
+            tsconfig: "./tsconfig.json",
+            include: ["src/**/*.ts"],
+        }), // Transpile TypeScript to JavaScript
     ],
 };

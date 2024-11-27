@@ -1,6 +1,6 @@
 {
     "name": "@tuum-tech/hedera-did-sdk-js",
-    "version": "0.1.1",
+    "version": "0.1.2",
     "description": "Support for the Hedera Hashgraph DID Method on the Hedera JavaScript/TypeScript SDK",
     "main": "dist/index.js",
     "module": "dist/index.js",
@@ -38,7 +38,9 @@
         "@rollup/plugin-json": "^6.1.0",
         "@rollup/plugin-node-resolve": "^15.3.0",
         "@rollup/plugin-typescript": "^12.1.1",
+        "@types/elliptic": "^6.4.18",
         "@types/jest": "^29.5.14",
+        "@types/js-base64": "^3.0.0",
         "@types/long": "^4.0.2",
         "jest": "^29.7.0",
         "prettier": "2.5.1",
@@ -48,11 +50,15 @@
     },
     "dependencies": {
         "@hashgraph/sdk": "^2.50.0",
+        "@veramo/utils": "^6.0.0",
         "base58-js": "^2.0.0",
         "dayjs": "^1.11.13",
+        "did-jwt": "^8.0.4",
         "did-resolver": "^4.1.0",
+        "elliptic": "^6.6.1",
         "js-base64": "^3.7.7",
-        "js-sha256": "^0.11.0"
+        "js-sha256": "^0.11.0",
+        "multiformats": "^9.9.0"
     },
     "packageManager": "yarn@3.2.1",
     "engines": {

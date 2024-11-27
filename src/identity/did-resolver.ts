@@ -34,6 +34,16 @@ export function getResolver(client?: Client): Record<string, DIDResolver> {
     return new HederaDidResolver(client).build();
 }
 
+enum SupportedVerificationMethods {
+    "JsonWebKey2020",
+    "EcdsaSecp256k1VerificationKey2020",
+    "Ed25519VerificationKey2020",
+}
+
+export type DIDHederaResolverOptions = DIDResolutionOptions & {
+    publicKeyFormat?: keyof typeof SupportedVerificationMethods; // defaults to 'Ed25519VerificationKey2020'
+};
+
 export class HederaDidResolver {
     private client: Client | undefined;
 
@@ -55,13 +65,17 @@ export class HederaDidResolver {
         did: string,
         _parsed: ParsedDID,
         _unused: Resolvable,
-        options: DIDResolutionOptions
+        options: DIDHederaResolverOptions
     ): Promise<DIDResolutionResult> {
         const networkName = did?.split(DidSyntax.DID_METHOD_SEPARATOR)[2];
         const client = this.getClient(networkName);
 
         try {
-            const registeredDid = new HcsDid({ identifier: did, client: client });
+            const registeredDid = new HcsDid({
+                identifier: did,
+                client: client,
+                publicKeyFormat: options.publicKeyFormat,
+            });
             const didDocument = await registeredDid.resolve();
             const status: Partial<DIDDocumentMetadata> = didDocument.getDeactivated() ? { deactivated: true } : {};
 

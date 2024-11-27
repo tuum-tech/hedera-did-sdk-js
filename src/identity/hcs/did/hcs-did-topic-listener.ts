@@ -105,10 +105,27 @@ export class HcsDidTopicListener {
     protected extractMessage(response: any): MessageEnvelope<HcsDidMessage> | null {
         let result: MessageEnvelope<HcsDidMessage> | null = null;
         try {
-            // Assuming message content is Base64 encoded
+            // Decode the Base64-encoded response.message
             const decodedMessage = Buffer.from(response.message, "base64").toString("utf-8");
-            result = MessageEnvelope.fromJson(decodedMessage, HcsDidMessage);
+            const parsedMessage = JSON.parse(decodedMessage);
+
+            // Decode the Base64-encoded event if necessary
+            if (parsedMessage?.message?.event) {
+                try {
+                    const decodedEvent = Buffer.from(parsedMessage.message.event, "base64").toString("utf-8");
+                    parsedMessage.message.event = JSON.parse(decodedEvent); // Parse the JSON-encoded `event`
+                } catch (eventDecodeError) {
+                    console.error("Failed to decode event field: ", eventDecodeError); // Log event-specific errors
+                    throw new DidError("Failed to decode and parse event field");
+                }
+            }
+
+            // Construct HcsDidMessage with the parsed message object
+            const hcsDidMessage = HcsDidMessage.fromJsonTree(parsedMessage.message);
+            result = new MessageEnvelope<HcsDidMessage>(hcsDidMessage);
+            result.setSignature(parsedMessage.signature);
         } catch (err) {
+            console.error("Error in extractMessage: ", err); // Log full error details
             this.handleError(err as Error);
         }
         return result;

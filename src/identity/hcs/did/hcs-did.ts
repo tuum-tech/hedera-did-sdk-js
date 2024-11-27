@@ -9,7 +9,16 @@ import {
     TopicUpdateTransaction,
     TransactionId,
 } from "@hashgraph/sdk";
-import { Hashing } from "../../../utils/hashing";
+import { base58btc } from "multiformats/bases/base58";
+import {
+    detectKeyTypeFromIdentifier,
+    detectKeyTypeFromPublicKey,
+    getPublicKeyBase58ForEd25519,
+    getPublicKeyBase58ForSecp256k1,
+    isValidCompressedOrUncompressedSecp256k1Key,
+    MULTICODECS,
+    removeMulticodecPrefix,
+} from "../../../utils/crypto-utils";
 import { DidDocument } from "../../did-document";
 import { DidError, DidErrorCode } from "../../did-error";
 import { DidMethodOperation } from "../../did-method-operation";
@@ -19,6 +28,7 @@ import { HcsDidDeleteEvent } from "./event/document/hcs-did-delete-event";
 import { HcsDidEvent } from "./event/hcs-did-event";
 import { HcsDidCreateDidOwnerEvent } from "./event/owner/hcs-did-create-did-owner-event";
 import { HcsDidUpdateDidOwnerEvent } from "./event/owner/hcs-did-update-did-owner-event";
+import { OwnerSupportedKeyType } from "./event/owner/types";
 import { HcsDidCreateServiceEvent } from "./event/service/hcs-did-create-service-event";
 import { HcsDidRevokeServiceEvent } from "./event/service/hcs-did-revoke-service-event";
 import { HcsDidUpdateServiceEvent } from "./event/service/hcs-did-update-service-event";
@@ -35,6 +45,7 @@ import {
     VerificationRelationshipType,
 } from "./event/verification-relationship/types";
 import { HcsDidEventMessageResolver } from "./hcs-did-event-message-resolver";
+import { ECDSA_SECP256K1_KEY_TYPE, ED25519_KEY_TYPE, JSON_WEB_KEY_TYPE } from "./hcs-did-key-type";
 import { HcsDidMessage } from "./hcs-did-message";
 import { HcsDidTransaction } from "./hcs-did-transaction";
 
@@ -45,7 +56,8 @@ export class HcsDid {
 
     protected client?: Client;
     protected privateKey?: PrivateKey;
-    protected privateKeyCurve: string = "Ed25519"; // Or 'Secp256k1';
+    protected keyType: string = "Ed25519"; // Or 'Secp256k1';
+    protected publicKeyFormat = ED25519_KEY_TYPE;
     protected identifier?: string;
     protected network?: string = DidSyntax.HEDERA_NETWORK_MAINNET;
     protected mirrorNodeUrl?: string = DEFAULT_HEDERA_MIRRORNODES[DidSyntax.HEDERA_NETWORK_MAINNET];
@@ -59,7 +71,7 @@ export class HcsDid {
         network?: string;
         identifier?: string;
         privateKey?: PrivateKey;
-        privateKeyCurve?: string;
+        publicKeyFormat?: string;
         client?: Client;
     }) {
         this.network = args.network || this.network;
@@ -68,10 +80,13 @@ export class HcsDid {
         }
         this.identifier = args.identifier;
         this.privateKey = args.privateKey;
-        if (args.privateKeyCurve && args.privateKeyCurve !== "Secp256k1" && args.privateKeyCurve !== "Ed25519") {
-            throw new DidError("Invalid private key curve. Supported curves are 'Secp256k1' and 'Ed25519'");
+        if (this.privateKey) {
+            const keyTypeFromPrivateKey = detectKeyTypeFromPublicKey(this.privateKey.publicKey);
+            if (!keyTypeFromPrivateKey) {
+                throw new DidError("Unable to detect key type from private key");
+            }
+            this.keyType = keyTypeFromPrivateKey;
         }
-        this.privateKeyCurve = args.privateKeyCurve || this.privateKeyCurve;
 
         this.client = args.client;
 
@@ -84,6 +99,24 @@ export class HcsDid {
             this.network = networkName;
             this.topicId = topicId;
             this.mirrorNodeUrl = DEFAULT_HEDERA_MIRRORNODES[this.network];
+            // Automatically detect the curve type from the identifier
+            const keyTypeFromIdentifier = detectKeyTypeFromIdentifier(this.identifier);
+            if (!keyTypeFromIdentifier) {
+                throw new DidError("Unable to detect key type from identifier");
+            }
+            this.keyType = keyTypeFromIdentifier;
+        }
+
+        if (this.keyType === "Ed25519") {
+            this.publicKeyFormat = ED25519_KEY_TYPE;
+        } else if (this.keyType === "Secp256k1") {
+            this.publicKeyFormat = ECDSA_SECP256K1_KEY_TYPE;
+        } else {
+            this.publicKeyFormat = JSON_WEB_KEY_TYPE;
+        }
+
+        if (args.publicKeyFormat) {
+            this.publicKeyFormat = args.publicKeyFormat as OwnerSupportedKeyType;
         }
     }
 
@@ -125,7 +158,7 @@ export class HcsDid {
             this.identifier + "#did-root-key",
             this.identifier,
             this.privateKey!.publicKey,
-            this.privateKeyCurve
+            this.publicKeyFormat
         );
         await this.submitTransaction(DidMethodOperation.CREATE, event, this.privateKey!);
 
@@ -172,7 +205,8 @@ export class HcsDid {
             new HcsDidUpdateDidOwnerEvent(
                 this.getIdentifier() + "#did-root-key",
                 args.controller,
-                args.newPrivateKey.publicKey
+                args.newPrivateKey.publicKey,
+                this.publicKeyFormat
             ),
             this.privateKey
         );
@@ -212,7 +246,7 @@ export class HcsDid {
                             .map((msg) => msg.open())
                             .filter((msg): msg is HcsDidMessage => msg !== null);
 
-                        this.document = new DidDocument(this.identifier!);
+                        this.document = new DidDocument(this.identifier!, this.publicKeyFormat);
                         await this.document.processMessages(this.messages);
                         resolve(this.document);
                     } catch (err) {
@@ -285,7 +319,7 @@ export class HcsDid {
     }) {
         this.validateClientConfig();
 
-        const event = new HcsDidCreateVerificationMethodEvent(args.id, args.type, args.controller, args.publicKey);
+        const event = new HcsDidCreateVerificationMethodEvent(args.id, args.controller, args.publicKey, args.type);
         await this.submitTransaction(DidMethodOperation.CREATE, event, this.privateKey!);
 
         return this;
@@ -304,7 +338,7 @@ export class HcsDid {
     }) {
         this.validateClientConfig();
 
-        const event = new HcsDidUpdateVerificationMethodEvent(args.id, args.type, args.controller, args.publicKey);
+        const event = new HcsDidUpdateVerificationMethodEvent(args.id, args.controller, args.publicKey, args.type);
         await this.submitTransaction(DidMethodOperation.UPDATE, event, this.privateKey!);
 
         return this;
@@ -341,9 +375,9 @@ export class HcsDid {
         const event = new HcsDidCreateVerificationRelationshipEvent(
             args.id,
             args.relationshipType,
-            args.type,
             args.controller,
-            args.publicKey
+            args.publicKey,
+            args.type
         );
         await this.submitTransaction(DidMethodOperation.CREATE, event, this.privateKey!);
 
@@ -367,9 +401,9 @@ export class HcsDid {
         const event = new HcsDidUpdateVerificationRelationshipEvent(
             args.id,
             args.relationshipType,
-            args.type,
             args.controller,
-            args.publicKey
+            args.publicKey,
+            args.type
         );
         await this.submitTransaction(DidMethodOperation.UPDATE, event, this.privateKey!);
 
@@ -406,8 +440,8 @@ export class HcsDid {
         return this.privateKey;
     }
 
-    public getPrivateKeyCurve() {
-        return this.privateKeyCurve;
+    public getKeyType() {
+        return this.keyType;
     }
 
     public getTopicId() {
@@ -429,13 +463,37 @@ export class HcsDid {
     /**
      * Static methods
      */
+    public static publicKeyToIdString(publicKey: PublicKey, keyType: string): string {
+        const publicKeyBytes = publicKey.toBytesRaw();
 
-    public static publicKeyToIdString(publicKey: PublicKey): string {
-        return Hashing.multibase.encode(publicKey.toBytes());
+        if (keyType.toLowerCase() === "ed25519") {
+            return getPublicKeyBase58ForEd25519(publicKeyBytes);
+        } else if (keyType.toLowerCase() === "secp256k1") {
+            if (!isValidCompressedOrUncompressedSecp256k1Key(publicKeyBytes)) {
+                throw new Error("Invalid Secp256k1 public key format.");
+            }
+            return getPublicKeyBase58ForSecp256k1(publicKeyBytes);
+        } else {
+            throw new Error("Unsupported key type. Expected 'Ed25519' or 'Secp256k1'.");
+        }
     }
 
     public static stringToPublicKey(idString: string): PublicKey {
-        return PublicKey.fromBytes(Hashing.multibase.decode(idString));
+        if (!idString.startsWith("z")) {
+            throw new Error("Invalid multibase encoding. Expected prefix 'z'.");
+        }
+
+        const decodedBytes = base58btc.decode(idString.slice(1));
+
+        if (decodedBytes[0] === MULTICODECS["ed25519-pub"][0]) {
+            const publicKeyBytes = removeMulticodecPrefix("ed25519-pub", decodedBytes);
+            return PublicKey.fromBytesED25519(publicKeyBytes);
+        } else if (decodedBytes[0] === MULTICODECS["secp256k1-pub"][0]) {
+            const publicKeyBytes = removeMulticodecPrefix("secp256k1-pub", decodedBytes);
+            return PublicKey.fromBytesECDSA(publicKeyBytes);
+        } else {
+            throw new Error("Unsupported multicodec prefix. Cannot determine key type.");
+        }
     }
 
     public static parsePublicKeyFromIdentifier(identifier: string): PublicKey {
@@ -456,7 +514,7 @@ export class HcsDid {
             DidSyntax.DID_METHOD_SEPARATOR +
             methodNetwork +
             DidSyntax.DID_METHOD_SEPARATOR +
-            HcsDid.publicKeyToIdString(publicKey) +
+            HcsDid.publicKeyToIdString(publicKey, this.keyType) +
             DidSyntax.DID_TOPIC_SEPARATOR +
             this.topicId!.toString();
 

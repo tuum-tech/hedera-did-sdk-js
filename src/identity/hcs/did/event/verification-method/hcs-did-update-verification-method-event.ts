@@ -1,10 +1,9 @@
-import { PublicKey } from "@hashgraph/sdk";
-import { Hashing } from "../../../../../utils/hashing";
+import { parsePublicKey } from "../../../../../utils/crypto-utils";
 import { HcsDidCreateVerificationMethodEvent } from "./hcs-did-create-verification-method-event";
 
 export class HcsDidUpdateVerificationMethodEvent extends HcsDidCreateVerificationMethodEvent {
     static fromJsonTree(tree: any): HcsDidCreateVerificationMethodEvent {
-        const publicKey = PublicKey.fromBytes(Hashing.base58.decode(tree?.publicKeyBase58));
-        return new HcsDidUpdateVerificationMethodEvent(tree?.id, tree?.type, tree?.controller, publicKey);
+        const { publicKey, publicKeyFormat } = parsePublicKey(tree);
+        return new HcsDidUpdateVerificationMethodEvent(tree?.id, tree?.controller, publicKey, publicKeyFormat);
     }
 }

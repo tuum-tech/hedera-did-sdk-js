@@ -46,6 +46,13 @@ const OPERATION_MAP: Record<DidMethodOperation, string> = {
 };
 
 export class HcsDidEventParser {
+    /**
+     * Parses an event from a Base64-encoded string.
+     *
+     * @param operation The DID operation type.
+     * @param eventBase64 The Base64-encoded event.
+     * @return An instance of HcsDidEvent.
+     */
     static fromBase64(operation: DidMethodOperation, eventBase64: any): HcsDidEvent {
         if (operation === DidMethodOperation.DELETE) {
             return HcsDidDeleteEvent.fromJsonTree(null);
@@ -61,6 +68,32 @@ export class HcsDidEventParser {
             }
             return new HcsDidEmptyEvent();
         } catch {
+            return new HcsDidEmptyEvent();
+        }
+    }
+
+    /**
+     * Parses an event directly from a JSON object.
+     *
+     * @param operation The DID operation type.
+     * @param eventJson The JSON object representing the event.
+     * @return An instance of HcsDidEvent.
+     */
+    static fromJson(operation: DidMethodOperation, eventJson: any): HcsDidEvent {
+        if (operation === DidMethodOperation.DELETE) {
+            return HcsDidDeleteEvent.fromJsonTree(null);
+        }
+
+        try {
+            const eventsByOperation = EVENT_NAME_TO_CLASS[OPERATION_MAP[operation]];
+            const eventTargetName = Object.keys(eventsByOperation).find((etn) => !!eventJson[etn]);
+
+            if (eventTargetName && eventsByOperation[eventTargetName]) {
+                return eventsByOperation[eventTargetName].fromJsonTree(eventJson[eventTargetName]);
+            }
+            return new HcsDidEmptyEvent();
+        } catch (err) {
+            console.error("Error in fromJson: ", err); // Debug
             return new HcsDidEmptyEvent();
         }
     }

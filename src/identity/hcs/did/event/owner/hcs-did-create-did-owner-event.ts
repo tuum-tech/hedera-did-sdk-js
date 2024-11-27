@@ -1,21 +1,26 @@
 import { PublicKey } from "@hashgraph/sdk";
-import { Hashing } from "../../../../../utils/hashing";
+import {
+    detectKeyTypeFromPublicKey,
+    generateDefinition,
+    getPublicKeyMultibaseString,
+    parsePublicKey,
+} from "../../../../../utils/crypto-utils";
 import { DidError } from "../../../../did-error";
+import { ECDSA_SECP256K1_KEY_TYPE, ED25519_KEY_TYPE, JSON_WEB_KEY_TYPE } from "../../hcs-did-key-type";
 import { HcsDidEvent } from "../hcs-did-event";
 import { HcsDidEventTargetName } from "../hcs-did-event-target-name";
+import { OwnerSupportedKeyType } from "./types";
 
 export class HcsDidCreateDidOwnerEvent extends HcsDidEvent {
-    public static ECDSA_SECP256K1_KEY_TYPE = "EcdsaSecp256k1VerificationKey2019";
-    public static ED25519_KEY_TYPE = "Ed25519VerificationKey2018";
-
     public readonly targetName = HcsDidEventTargetName.DID_OWNER;
 
     protected id: string;
-    protected type = HcsDidCreateDidOwnerEvent.ED25519_KEY_TYPE;
+    protected type: string; // Cryptographic key type (e.g., "Ed25519" or "Secp256k1")
+    protected publicKeyFormat: OwnerSupportedKeyType; // Encoding/format of the public key (e.g., "EcdsaSecp256k1VerificationKey2020")
     protected controller: string;
     protected publicKey: PublicKey;
 
-    constructor(id: string, controller: string, publicKey: PublicKey, privateKeyCurve?: string) {
+    constructor(id: string, controller: string, publicKey: PublicKey, publicKeyFormat?: string) {
         super();
 
         if (!id || !controller || !publicKey) {
@@ -29,13 +34,21 @@ export class HcsDidCreateDidOwnerEvent extends HcsDidEvent {
         this.id = id;
         this.controller = controller;
         this.publicKey = publicKey;
-        if (privateKeyCurve === "Secp256k1") {
-            this.type = HcsDidCreateDidOwnerEvent.ECDSA_SECP256K1_KEY_TYPE;
-        } else if (privateKeyCurve === "Ed25519") {
-            this.type = HcsDidCreateDidOwnerEvent.ED25519_KEY_TYPE;
-        } else {
-            throw new DidError(`Invalid private key curve: ${privateKeyCurve}`);
+
+        const keyTypeFromPublicKey = detectKeyTypeFromPublicKey(this.publicKey);
+        if (!keyTypeFromPublicKey) {
+            throw new DidError("Unable to detect key type from public key");
         }
+        this.type = keyTypeFromPublicKey;
+
+        const validFormats = [ED25519_KEY_TYPE, ECDSA_SECP256K1_KEY_TYPE, JSON_WEB_KEY_TYPE];
+        if (publicKeyFormat && !validFormats.includes(publicKeyFormat)) {
+            throw new DidError(`Unsupported public key format: ${publicKeyFormat}`);
+        }
+
+        this.publicKeyFormat =
+            (publicKeyFormat as OwnerSupportedKeyType) ||
+            (this.type === "Ed25519" ? ED25519_KEY_TYPE : ECDSA_SECP256K1_KEY_TYPE);
     }
 
     public getId() {
@@ -54,28 +67,26 @@ export class HcsDidCreateDidOwnerEvent extends HcsDidEvent {
         return this.publicKey;
     }
 
-    public getPublicKeyBase58() {
-        return Hashing.base58.encode(this.getPublicKey().toBytes());
+    public getPublicKeyFormat() {
+        return this.publicKeyFormat;
+    }
+
+    public getPublicKeyMultibase() {
+        if (this.publicKeyFormat === JSON_WEB_KEY_TYPE) {
+            throw new DidError("Public key format is JsonWebKey2020 and does not support multibase encoding");
+        }
+        const publicKeyBytes = this.publicKey.toBytesRaw();
+        return getPublicKeyMultibaseString(this.publicKeyFormat, publicKeyBytes);
     }
 
     public getOwnerDef() {
-        return {
-            id: this.getId(),
-            type: this.getType(),
-            controller: this.getController(),
-            publicKeyBase58: this.getPublicKeyBase58(),
-        };
+        const publicKeyMultibase =
+            this.publicKeyFormat === JSON_WEB_KEY_TYPE ? this.publicKey.toBytesRaw() : this.getPublicKeyMultibase();
+        return generateDefinition(this.id, this.type, this.controller, publicKeyMultibase, this.publicKeyFormat);
     }
 
     public toJsonTree() {
-        return {
-            [this.targetName]: {
-                id: this.getId(),
-                type: this.getType(),
-                controller: this.getController(),
-                publicKeyBase58: this.getPublicKeyBase58(),
-            },
-        };
+        return { [this.targetName]: this.getOwnerDef() };
     }
 
     public toJSON() {
@@ -83,10 +94,7 @@ export class HcsDidCreateDidOwnerEvent extends HcsDidEvent {
     }
 
     static fromJsonTree(tree: any): HcsDidCreateDidOwnerEvent {
-        const publicKey = PublicKey.fromBytes(Hashing.base58.decode(tree?.publicKeyBase58));
-        const type = tree?.type || HcsDidCreateDidOwnerEvent.ED25519_KEY_TYPE; // Default to Ed25519 if type is missing
-        const privateKeyCurve = type === HcsDidCreateDidOwnerEvent.ECDSA_SECP256K1_KEY_TYPE ? "Secp256k1" : "Ed25519";
-
-        return new HcsDidCreateDidOwnerEvent(tree?.id, tree?.controller, publicKey, privateKeyCurve);
+        const { publicKey, publicKeyFormat } = parsePublicKey(tree);
+        return new HcsDidCreateDidOwnerEvent(tree?.id, tree?.controller, publicKey, publicKeyFormat);
     }
 }

@@ -1,5 +1,6 @@
 import { Timestamp, TopicId } from "@hashgraph/sdk";
 import Long from "long";
+import { DidError } from "../../..";
 import { TimestampUtils } from "../../../utils/timestamp-utils";
 import { DidMethodOperation } from "../../did-method-operation";
 import { DidParser } from "../../did-parser";
@@ -91,12 +92,38 @@ export class HcsDidMessage {
         const result: any = { timestamp: TimestampUtils.toJSON(this.timestamp) };
         result.operation = this.operation;
         result.did = this.did;
-        result.event = this.getEventBase64();
+
+        // Handle the event serialization
+        if (this.event) {
+            if (typeof this.event.toJsonTree === "function") {
+                // If the event has a `toJsonTree` method, use it
+                result.event = this.event.toJsonTree();
+            } else if (typeof this.event === "object") {
+                // If the event is a plain object, include it as-is
+                result.event = this.event;
+            } else {
+                // Fallback to Base64 serialization
+                result.event = this.getEventBase64();
+            }
+        } else {
+            result.event = null; // Handle null or undefined events
+        }
+
         return result;
     }
 
     public static fromJsonTree(tree: any, result?: HcsDidMessage): HcsDidMessage {
-        const event = HcsDidEventParser.fromBase64(tree.operation, tree.event);
+        let event;
+
+        if (typeof tree.event === "string") {
+            // If it's a Base64-encoded string, decode it
+            event = HcsDidEventParser.fromBase64(tree.operation, tree.event);
+        } else if (typeof tree.event === "object") {
+            // Use the JSON object directly
+            event = HcsDidEventParser.fromJson(tree.operation, tree.event);
+        } else {
+            throw new DidError("Invalid event format in HcsDidMessage.fromJsonTree");
+        }
 
         if (!result) {
             result = new HcsDidMessage(tree.operation, tree.did, event);
