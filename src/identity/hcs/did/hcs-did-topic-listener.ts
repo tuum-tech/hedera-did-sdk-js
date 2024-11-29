@@ -110,7 +110,7 @@ export class HcsDidTopicListener {
             const parsedMessage = JSON.parse(decodedMessage);
 
             // Decode the Base64-encoded event if necessary
-            if (parsedMessage?.message?.event) {
+            if (parsedMessage?.message?.event && typeof parsedMessage.message.event === "string") {
                 try {
                     const decodedEvent = Buffer.from(parsedMessage.message.event, "base64").toString("utf-8");
                     parsedMessage.message.event = JSON.parse(decodedEvent); // Parse the JSON-encoded `event`
